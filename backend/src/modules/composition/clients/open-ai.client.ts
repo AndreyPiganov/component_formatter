@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Candidate } from './input';
+import type { CatalogComponent } from '../../../common/domain/catalog-component';
+import { AppConfigService } from '../../../config/app-config.service';
 
 interface ResponseItem {
   type: string;
@@ -7,11 +8,13 @@ interface ResponseItem {
 }
 
 @Injectable()
-export class OpenAiService {
-  private readonly logger = new Logger(OpenAiService.name);
+export class OpenAiClient {
+  private readonly logger = new Logger(OpenAiClient.name);
 
-  async select(text: string, candidates: Candidate[]): Promise<string[] | undefined> {
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+  constructor(private readonly config: AppConfigService) {}
+
+  async select(text: string, candidates: CatalogComponent[]): Promise<string[] | undefined> {
+    const apiKey = this.config.openAiApiKey;
     if (!apiKey) return;
     const allowedIds = candidates.map(({ id }) => id);
     try {
@@ -20,7 +23,7 @@ export class OpenAiService {
         headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(12_000),
         body: JSON.stringify({
-          model: process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini',
+          model: this.config.openAiModel,
           store: false,
           max_output_tokens: 400,
           instructions: 'Подбери от 1 до 5 разных объектов для векторной иллюстрации заголовка или метафоры. ' +
@@ -50,7 +53,8 @@ export class OpenAiService {
       }
       return [...new Set<string>(ids)].slice(0, 5);
     } catch (error) {
-      this.logger.warn('OpenAI недоступен, используется поиск по тегам. ' + (error as Error).message);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn('OpenAI недоступен, используется поиск по тегам. ' + message);
     }
   }
 }

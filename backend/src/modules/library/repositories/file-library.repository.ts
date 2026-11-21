@@ -1,51 +1,51 @@
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { readCandidate, type Candidate } from '../composition/input';
-
-interface LibraryAsset extends Candidate {
-  source: string;
-  detail: 'simple' | 'detailed' | 'any';
-  svg: string;
-}
+import { readCatalogComponent } from '../../../common/domain/catalog-component';
+import { AppConfigService } from '../../../config/app-config.service';
+import type { LibraryCatalog } from '../domain/library.types';
+import { LibraryRepository } from './library.repository';
 
 @Injectable()
-export class LibraryService implements OnModuleInit {
-  private readonly logger = new Logger(LibraryService.name);
-  private catalog: { entries: LibraryAsset[]; skipped: number } = { entries: [], skipped: 0 };
+export class FileLibraryRepository implements LibraryRepository {
+  private readonly logger = new Logger(FileLibraryRepository.name);
 
-  async onModuleInit() {
-    const directory = resolve(process.env.ASSETS_DIR || '../assets');
+  constructor(private readonly config: AppConfigService) {}
+
+  async readCatalog(): Promise<LibraryCatalog> {
+    const directory = resolve(this.config.assetsDir);
+    const catalog: LibraryCatalog = { entries: [], skipped: 0 };
     let manifest: unknown;
     try {
       manifest = JSON.parse(await readFile(resolve(directory, 'catalog.json'), 'utf8'));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         this.logger.warn('Не удалось прочитать assets/catalog.json.');
-        this.catalog.skipped = 1;
+        catalog.skipped = 1;
       }
-      return;
+      return catalog;
     }
     if (!Array.isArray(manifest)) {
       this.logger.warn('В assets/catalog.json ожидается массив.');
-      this.catalog.skipped = 1;
-      return;
+      catalog.skipped = 1;
+      return catalog;
     }
 
     const root = await realpath(directory);
     const keys = new Set<string>();
-    const entries: LibraryAsset[] = [];
-    for (const record of manifest) {
+    for (const [index, record] of (manifest as unknown[]).entries()) {
       try {
-        const candidate = readCandidate(record);
-        const { file, source, detail } = record;
-        if (!candidate || typeof file !== 'string' || isAbsolute(file) ||
+        const component = readCatalogComponent(record);
+        const { file, source, detail } = component
+          ? record as { file?: unknown; source?: unknown; detail?: unknown }
+          : {};
+        if (!component || typeof file !== 'string' || isAbsolute(file) ||
             extname(file).toLowerCase() !== '.svg' ||
             typeof source !== 'string' || !source.trim() ||
             (detail !== 'detailed' && detail !== 'simple' && detail !== 'any')) {
           throw new Error('укажите id, name, role, detail, source и относительный путь к SVG');
         }
-        const key = detail + '/' + candidate.id;
+        const key = detail + '/' + component.id;
         if (keys.has(key)) throw new Error('повторяющийся вариант ' + key);
         const target = await realpath(resolve(root, file));
         const localPath = relative(root, target);
@@ -57,19 +57,15 @@ export class LibraryService implements OnModuleInit {
           throw new Error('нужен SVG-файл размером до 1 МБ');
         }
         const svg = await readFile(target, 'utf8');
-        entries.push({ ...candidate, source: source.trim().slice(0, 120), detail, svg });
+        catalog.entries.push({ ...component, source: source.trim().slice(0, 120), detail, svg });
         keys.add(key);
       } catch (error) {
-        this.logger.warn('Пропущена запись каталога ' + (entries.length + this.catalog.skipped + 1) +
-          '. ' + (error as Error).message);
-        this.catalog.skipped++;
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn('Пропущена запись каталога ' + (index + 1) + '. ' + message);
+        catalog.skipped++;
       }
     }
-    this.catalog.entries = entries;
-    this.logger.log('В библиотеке SVG-вариантов: ' + entries.length);
-  }
-
-  getCatalog() {
-    return this.catalog;
+    this.logger.log('В библиотеке SVG-вариантов: ' + catalog.entries.length);
+    return catalog;
   }
 }

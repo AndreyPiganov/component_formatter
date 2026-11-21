@@ -1,8 +1,9 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { CompositionService } = require('../dist/composition/composition.service');
-const { readCompositionRequest } = require('../dist/composition/input');
-const { OpenAiService } = require('../dist/composition/open-ai.service');
+const { AppConfigService } = require('../dist/config/app-config.service');
+const { OpenAiClient } = require('../dist/modules/composition/clients/open-ai.client');
+const { readCompositionRequest } = require('../dist/modules/composition/dto/select-composition.dto');
+const { CompositionService } = require('../dist/modules/composition/services/composition.service');
 
 const candidates = [
   { id: 'book-main', name: 'Раскрытая книга', role: 'main', tags: ['книга', 'учёба', 'знания'] },
@@ -54,7 +55,7 @@ test('constrains model output to the catalog and falls back when an unknown ID i
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(body) }] }],
     }));
   });
-  const service = new CompositionService(new OpenAiService());
+  const service = new CompositionService(new OpenAiClient(new AppConfigService()));
   const input = { mode: 'metaphor', text: 'свет', candidates };
   assert.deepEqual(await service.select(input), { method: 'ai', ids: ['book-main'], unmatched: [] });
   body.ids = ['invented'];

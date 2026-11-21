@@ -1,14 +1,8 @@
-import { Controller, Get, Module } from '@nestjs/common';
-import { CompositionModule } from './composition/composition.module';
-import { LibraryModule } from './library/library.module';
+import { Module } from '@nestjs/common';
+import { AppConfigModule } from './config/app-config.module';
+import { CompositionModule } from './modules/composition/composition.module';
+import { HealthModule } from './modules/health/health.module';
+import { LibraryModule } from './modules/library/library.module';
 
-@Controller('health')
-class HealthController {
-  @Get()
-  check() {
-    return { status: 'ok' };
-  }
-}
-
-@Module({ imports: [LibraryModule, CompositionModule], controllers: [HealthController] })
+@Module({ imports: [AppConfigModule, HealthModule, LibraryModule, CompositionModule] })
 export class AppModule {}
