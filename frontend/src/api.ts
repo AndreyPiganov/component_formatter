@@ -1,3 +1,4 @@
+import { referenceSizedAssets } from './scene';
 import { parseSvg, type CatalogEntry, type Detail, type SvgAsset } from './svg';
 
 export type CompositionMode = 'names' | 'metaphor';
@@ -21,7 +22,7 @@ export async function loadLibrary(signal: AbortSignal) {
       skipped++;
     }
   }
-  return { assets, skipped };
+  return { assets: referenceSizedAssets(assets), skipped };
 }
 
 export async function selectObjects(mode: CompositionMode, text: string, detail: Detail) {

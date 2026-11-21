@@ -191,6 +191,8 @@ select {
     #fbfaff;
   font-size: .875rem;
 }
+.work-toolbar { flex-wrap: wrap; }
+.work-toolbar .number-field { width: 10rem; }
 .work-toolbar select { min-width: 0; max-width: 100%; }
 .inspector select { width: 100%; }
 .canvas-viewport {

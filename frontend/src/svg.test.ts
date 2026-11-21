@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { assetPalette, parseScheme, schemes } from './palette';
-import { arrangeObjects, assetsForLayers, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
+import { arrangeObjects, assetsForLayers, formats, placeAsset, referenceSizedAssets, resizeLayers, scaleComposition, visibleAssets } from './scene';
 import { exportSvg, parseSvg, renderAsset, type CatalogEntry } from './svg';
 
 const entry: CatalogEntry = {
@@ -73,8 +73,8 @@ describe('size variants and palette', () => {
     const layer = placeAsset(detailed, before);
     const compact = visibleAssets(assets, after.detail);
     expect(compact.get(entry.id)).toBe(simple);
-    expect(resizeLayers([layer], before, after, visibleAssets(assets, before.detail), compact)).toEqual([
-      { ...layer, x: layer.x / 2, y: layer.y / 2 },
+    expect(resizeLayers([layer], before, after)).toEqual([
+      { ...layer, x: layer.x / 2, y: layer.y / 2, scale: layer.scale / 2 },
     ]);
   });
 
@@ -91,9 +91,26 @@ describe('size variants and palette', () => {
     const available = visibleAssets([simple], 'detailed');
     expect(available.size).toBe(0);
     const resolved = assetsForLayers([simple], available);
-    const resized = resizeLayers([layer], before, after, new Map([[entry.id, simple]]), resolved);
+    const resized = resizeLayers([layer], before, after);
     expect(resized[0]).toEqual({ ...layer, x: layer.x * 2, y: layer.y * 2, scale: layer.scale * 2 });
     expect(exportSvg(after, resized, resolved, new Map())).toContain('M5 7L40 15Z');
+  });
+
+  it('uses one scene scale for differently sized subjects across roles and detail levels', () => {
+    const book = { ...parseSvg(entry, fixture), componentId: 'book' };
+    const small = { ...book, id: 'coin', componentId: 'coin', width: 12, height: 12 };
+    const compactCoin = { ...small, id: 'coin-bg', role: 'background' as const, detail: 'simple' as const, width: 5, height: 6 };
+    const [variant] = referenceSizedAssets([compactCoin, small, book]);
+    expect([variant.width, variant.height]).toEqual([10, 12]);
+    const board = { ...formats[0], background: 'transparent' };
+    const scene = arrangeObjects([book, small], board);
+    expect(scene[0].scale).toBe(scene[1].scale);
+    const resized = scaleComposition(scene, 2, scene[0]);
+    expect(resized[1].x - resized[0].x).toBeCloseTo((scene[1].x - scene[0].x) * 2);
+    expect(resized[1].scale).toBe(resized[0].scale);
+    const xml = new DOMParser().parseFromString(renderAsset(variant, 'test', new Map()), 'image/svg+xml');
+    expect(xml.documentElement.getAttribute('width')).toBe('10');
+    expect(xml.documentElement.getAttribute('viewBox')).toBe('4 6 60 20');
   });
 
   it('validates separate palettes for backgrounds and objects', () => {

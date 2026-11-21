@@ -23,30 +23,54 @@ export function assetsForLayers(assets: SvgAsset[], available: ReadonlyMap<strin
   return resolved;
 }
 
-export function placeAsset(asset: SvgAsset, artboard: Artboard, x = artboard.width / 2, y = artboard.height / 2) {
-  return {
-    id: newId(), assetId: asset.id, x, y, rotation: 0,
-    scale: Math.min(artboard.width * 0.5 / asset.width, artboard.height * 0.52 / asset.height),
-  } satisfies Layer;
+// Variants share a subject's physical size. Their own aspect ratio and viewBox stay intact.
+export function referenceSizedAssets(assets: SvgAsset[]): SvgAsset[] {
+  const references = new Map<string, SvgAsset>();
+  const priority = (asset: SvgAsset) =>
+    (asset.detail === 'detailed' ? 4 : asset.detail === 'any' ? 2 : 0) + Number(asset.role === 'main');
+  for (const asset of assets) {
+    const key = asset.componentId ?? asset.id;
+    const previous = references.get(key);
+    if (!previous || priority(asset) > priority(previous)) references.set(key, asset);
+  }
+  return assets.map((asset) => {
+    const reference = references.get(asset.componentId ?? asset.id)!;
+    const ratio = Math.max(reference.width, reference.height) / Math.max(asset.width, asset.height);
+    return ratio === 1 ? asset : { ...asset, width: asset.width * ratio, height: asset.height * ratio };
+  });
 }
 
-export function resizeLayers(
-  layers: Layer[], before: Artboard, after: Artboard,
-  oldAssets: ReadonlyMap<string, SvgAsset>, newAssets: ReadonlyMap<string, SvgAsset>,
-) {
-  const ratio = Math.min(after.width / before.width, after.height / before.height);
-  return layers.flatMap((layer) => {
-    const oldAsset = oldAssets.get(layer.assetId);
-    const newAsset = newAssets.get(layer.assetId);
-    if (!oldAsset || !newAsset) return [];
-    return [{
-      ...layer,
-      x: layer.x * after.width / before.width,
-      y: layer.y * after.height / before.height,
-      scale: layer.scale * ratio * Math.max(oldAsset.width, oldAsset.height) /
-        Math.max(newAsset.width, newAsset.height),
-    }];
-  });
+export function initialScale(assets: Iterable<SvgAsset>, board: Artboard) {
+  let width = 0, height = 0;
+  for (const asset of assets) {
+    width = Math.max(width, asset.width);
+    height = Math.max(height, asset.height);
+  }
+  return Math.min(board.width * .5 / width, board.height * .52 / height);
+}
+
+export function placeAsset(asset: SvgAsset, artboard: Artboard, x = artboard.width / 2, y = artboard.height / 2,
+  scale = initialScale([asset], artboard)): Layer {
+  return { id: newId(), assetId: asset.id, x, y, rotation: 0, scale };
+}
+
+export function scaleComposition(layers: Layer[], factor: number, pivot: { x: number; y: number }) {
+  return layers.map((layer) => ({
+    ...layer,
+    x: pivot.x + (layer.x - pivot.x) * factor,
+    y: pivot.y + (layer.y - pivot.y) * factor,
+    scale: layer.scale * factor,
+  }));
+}
+
+export function resizeLayers(layers: Layer[], before: Artboard, after: Artboard) {
+  const ratio = Math.min(after.width, after.height) / Math.min(before.width, before.height);
+  return layers.map((layer) => ({
+    ...layer,
+    x: layer.x * after.width / before.width,
+    y: layer.y * after.height / before.height,
+    scale: layer.scale * ratio,
+  }));
 }
 
 interface Slot {
@@ -89,14 +113,15 @@ export function arrangeObjects(assets: SvgAsset[], artboard: Artboard): Layer[] 
   const background = assets.filter((asset) => asset.role === 'background');
   const focus = foreground.length ? foreground : background;
   const frame = slots(focus.length, artboard);
-  const inSlot = (asset: SvgAsset, slot: Slot): Layer => ({
-    id: newId(), assetId: asset.id, rotation: 0,
-    x: Math.round(slot.x * artboard.width), y: Math.round(slot.y * artboard.height),
-    scale: Math.min(slot.w * artboard.width / asset.width, slot.h * artboard.height / asset.height),
-  });
-  const accents = foreground.length ? background.map((asset, index) => inSlot(asset, {
-    x: (index + .5) / background.length, y: index % 2 === 0 ? .78 : .24,
-    w: Math.min(.42, .88 / background.length), h: .37,
+  const placements = foreground.length ? background.map((asset, index) => ({
+    asset, slot: {
+      x: (index + .5) / background.length, y: index % 2 === 0 ? .78 : .24,
+      w: Math.min(.42, .88 / background.length), h: .37,
+    },
   })) : [];
-  return [...accents, ...focus.map((asset, index) => inSlot(asset, frame[index]))];
+  placements.push(...focus.map((asset, index) => ({ asset, slot: frame[index] })));
+  const scale = Math.min(...placements.map(({ asset, slot }) =>
+    Math.min(slot.w * artboard.width / asset.width, slot.h * artboard.height / asset.height)));
+  return placements.map(({ asset, slot }) => placeAsset(asset, artboard,
+    Math.round(slot.x * artboard.width), Math.round(slot.y * artboard.height), scale));
 }

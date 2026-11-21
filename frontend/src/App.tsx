@@ -6,7 +6,7 @@ import {
 import { loadLibrary, selectObjects, type CompositionMode } from './api';
 import { Canvas } from './Canvas';
 import { assetPalette, parseScheme, schemeColors, schemes, type Scheme } from './palette';
-import { arrangeObjects, assetsForLayers, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
+import { arrangeObjects, assetsForLayers, formats, initialScale, placeAsset, resizeLayers, scaleComposition, visibleAssets } from './scene';
 import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } from './svg';
 
 type Background = number | 'transparent';
@@ -122,7 +122,8 @@ export default function App() {
 
   function addObject(asset: SvgAsset) {
     const layer = placeAsset(asset, artboard, artboard.width / 2 + (layers.length % 5) * 20,
-      artboard.height / 2 + (layers.length % 5) * 20);
+      artboard.height / 2 + (layers.length % 5) * 20,
+      layers[0]?.scale ?? initialScale(personalIds.has(asset.id) ? [asset] : sourceAssets, artboard));
     setLayers((current) => [...current, layer]);
     setSelectedId(layer.id);
     setStatus('');
@@ -157,10 +158,9 @@ export default function App() {
   function changeFormat(index: number) {
     const nextFormat = formats[index];
     if (!nextFormat) return;
-    const nextAssets = visibleAssets(assets, nextFormat.detail);
     setLayers((current) => resizeLayers(current, artboard, {
       width: nextFormat.width, height: nextFormat.height, background: artboard.background,
-    }, sceneAssets, assetsForLayers(assets, nextAssets)));
+    }));
     setProposal(null);
     setFormatIndex(index);
   }
@@ -277,6 +277,9 @@ export default function App() {
             onChange={(event) => changeFormat(Number(event.target.value))}>
             {formats.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
           </select>
+          {layers.length > 0 && <NumberField label="Размер композиции, %" value={Number((layers[0].scale * 100).toFixed(2))}
+            min={0.01} onChange={(percent) => setLayers((current) => scaleComposition(current,
+              percent / (100 * current[0].scale), { x: artboard.width / 2, y: artboard.height / 2 }))} />}
         </div>
         <Canvas artboard={artboard} layers={layers} assets={sceneAssets} palettes={palettes}
           selectedId={selectedId} select={setSelectedId}
@@ -339,8 +342,6 @@ export default function App() {
           {otherRole && <label className="role-field">Роль объекта
             <select value={selectedAsset.role} onChange={() => patchLayer(selected.id, {
               assetId: otherRole.id,
-              scale: selected.scale * Math.max(selectedAsset.width, selectedAsset.height) /
-                Math.max(otherRole.width, otherRole.height),
               colorSlots: undefined,
             })}>
               <option value="main">Главный</option>
@@ -374,8 +375,6 @@ export default function App() {
             <NumberField label="Y" value={Math.round(selected.y)} onChange={(y) => patchLayer(selected.id, { y })} />
             <NumberField label="Угол, °" value={selected.rotation}
               onChange={(rotation) => patchLayer(selected.id, { rotation })} />
-            <NumberField label="Масштаб, %" value={Math.round(selected.scale * 100)} min={1}
-              onChange={(scale) => patchLayer(selected.id, { scale: scale / 100 })} />
           </div>
           <div className="layer-actions">
             <button className="icon-button" aria-label="Поднять слой" title="Поднять слой"

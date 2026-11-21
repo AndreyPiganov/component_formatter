@@ -185,6 +185,8 @@ export function renderAsset(asset: SvgAsset, instanceId: string, palette: Readon
       }
     }
   }
+  root.setAttribute('width', String(asset.width));
+  root.setAttribute('height', String(asset.height));
   root.setAttribute('x', String(-asset.width / 2));
   root.setAttribute('y', String(-asset.height / 2));
   return serialize(root);
