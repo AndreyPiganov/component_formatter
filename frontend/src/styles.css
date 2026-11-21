@@ -193,16 +193,34 @@ select {
 }
 .work-toolbar select { min-width: 0; max-width: 100%; }
 .inspector select { width: 100%; }
-.canvas-space {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: .8rem;
-  padding: clamp(1rem, 3vw, 2rem);
-  min-height: max(345px, calc(100dvh - 257px));
+.canvas-viewport {
+  container-type: size;
+  height: max(325px, calc(100dvh - 285px));
+  overflow: auto;
+  overscroll-behavior: contain;
   background-image: radial-gradient(#d8d1e3 1px, transparent 1px);
   background-size: 16px 16px;
 }
+.canvas-mat {
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 12px;
+  display: grid;
+  place-items: center;
+}
+.canvas-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  flex-wrap: wrap;
+  padding: .35rem .75rem;
+  background: white;
+  border-top: 1px solid var(--line);
+}
+.canvas-controls [role="group"] { display: flex; align-items: center; gap: .3rem; }
+.canvas-controls output { min-width: 3rem; text-align: center; font-variant-numeric: tabular-nums; }
 .artboard {
   position: relative;
   isolation: isolate;
@@ -242,12 +260,9 @@ select {
 .canvas-empty span { font-size: .875rem; }
 .canvas-size { color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
 .status {
-  position: absolute;
-  z-index: 1;
-  bottom: .9rem;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(92%, 540px);
+  display: block;
+  margin: .4rem auto;
+  width: min(96%, 640px);
   background: white;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -305,7 +320,7 @@ select {
   .inspector { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
   .panel { max-height: none; }
   .library { max-height: 74vh; }
-  .canvas-space { min-height: 380px; }
+  .canvas-viewport { height: max(330px, 55dvh); }
 }
 @media (max-width: 540px) {
   .app-header { padding-inline: .7rem; }

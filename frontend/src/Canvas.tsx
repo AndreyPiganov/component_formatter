@@ -1,4 +1,5 @@
 import { memo, useMemo, useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { CanvasViewport } from './CanvasViewport';
 import { Layers } from 'lucide-react';
 import { layerTransform, renderAsset, type Artboard, type Layer, type SvgAsset } from './svg';
 
@@ -73,34 +74,27 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
     }
   }
 
-  return <div className="canvas-space">
-    <div className="artboard" style={{
-      width: 'min(100%, ' + 57 * artboard.width / artboard.height + 'vh)',
-      aspectRatio: artboard.width + ' / ' + artboard.height,
-      backgroundColor: artboard.background,
-    }}>
-      <svg className="scene" ref={canvas} viewBox={'0 0 ' + artboard.width + ' ' + artboard.height}
-        tabIndex={0} aria-label="Интерактивный холст"
-        onPointerDown={() => select(null)} onPointerMove={update} onPointerUp={stop}
-        onPointerCancel={stop} onLostPointerCapture={stop} onKeyDown={onKey}>
-        {layers.map((layer) => {
-          const asset = assets.get(layer.assetId);
-          if (!asset) return null;
-          return <g key={layer.id} data-layer={layer.id} transform={layerTransform(layer)}
-            onPointerDown={(event) => start(event, layer)}>
-            <VectorObject asset={asset} id={layer.id} colorSlots={layer.colorSlots} palette={palettes.get(asset.id) ?? emptyPalette} />
-            <rect className={layer.id === selectedId ? 'layer-hit selected' : 'layer-hit'}
-              x={-asset.width / 2} y={-asset.height / 2} width={asset.width} height={asset.height}
-              fill="transparent" vectorEffect="non-scaling-stroke" />
-          </g>;
-        })}
-      </svg>
-      {layers.length === 0 && <div className="canvas-empty">
-        <Layers size={32} strokeWidth={1.6} />
-        <strong>Холст пуст</strong>
-        <span>Добавьте объекты из библиотеки</span>
-      </div>}
-    </div>
-    <span className="canvas-size">{artboard.width} × {artboard.height} px</span>
-  </div>;
+  return <CanvasViewport artboard={artboard}>
+    <svg className="scene" ref={canvas} viewBox={'0 0 ' + artboard.width + ' ' + artboard.height}
+      tabIndex={0} aria-label="Интерактивный холст"
+      onPointerDown={() => select(null)} onPointerMove={update} onPointerUp={stop}
+      onPointerCancel={stop} onLostPointerCapture={stop} onKeyDown={onKey}>
+      {layers.map((layer) => {
+        const asset = assets.get(layer.assetId);
+        if (!asset) return null;
+        return <g key={layer.id} data-layer={layer.id} transform={layerTransform(layer)}
+          onPointerDown={(event) => start(event, layer)}>
+          <VectorObject asset={asset} id={layer.id} colorSlots={layer.colorSlots} palette={palettes.get(asset.id) ?? emptyPalette} />
+          <rect className={layer.id === selectedId ? 'layer-hit selected' : 'layer-hit'}
+            x={-asset.width / 2} y={-asset.height / 2} width={asset.width} height={asset.height}
+            fill="transparent" vectorEffect="non-scaling-stroke" />
+        </g>;
+      })}
+    </svg>
+    {layers.length === 0 && <div className="canvas-empty">
+      <Layers size={32} strokeWidth={1.6} />
+      <strong>Холст пуст</strong>
+      <span>Добавьте объекты из библиотеки</span>
+    </div>}
+  </CanvasViewport>;
 }
