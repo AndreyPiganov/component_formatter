@@ -7,11 +7,20 @@ export const formats = [
 ] satisfies { name: string; width: number; height: number; detail: Detail }[];
 
 export function visibleAssets(assets: SvgAsset[], detail: Detail) {
-  const available = new Map(assets.map((asset) => [asset.id, asset]));
+  const available = new Map<string, SvgAsset>();
   for (const asset of assets) {
-    if (asset.detail === detail || asset.detail === 'any') available.set(asset.id, asset);
+    if (asset.detail === detail || (asset.detail === 'any' && !available.has(asset.id))) available.set(asset.id, asset);
   }
   return available;
+}
+
+// Existing layers keep their only vector when the requested size is unavailable.
+export function assetsForLayers(assets: SvgAsset[], available: ReadonlyMap<string, SvgAsset>) {
+  const resolved = new Map(available);
+  for (const asset of assets) {
+    if (!resolved.has(asset.id)) resolved.set(asset.id, asset);
+  }
+  return resolved;
 }
 
 export function placeAsset(asset: SvgAsset, artboard: Artboard, x = artboard.width / 2, y = artboard.height / 2) {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { assetPalette, parseScheme, schemes } from './palette';
-import { arrangeObjects, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
+import { arrangeObjects, assetsForLayers, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
 import { exportSvg, parseSvg, renderAsset, type CatalogEntry } from './svg';
 
 const entry: CatalogEntry = {
@@ -60,6 +60,24 @@ describe('size variants and palette', () => {
     expect(resizeLayers([layer], before, after, visibleAssets(assets, before.detail), compact)).toEqual([
       { ...layer, x: layer.x / 2, y: layer.y / 2 },
     ]);
+  });
+
+  it('prefers exact detail in either catalog order and retains unavailable artwork only for placed layers', () => {
+    const simple = parseSvg({ ...entry, detail: 'simple' }, fixture);
+    const generic = { ...simple, detail: 'any' as const };
+    for (const assets of [[simple, generic], [generic, simple]]) {
+      expect(visibleAssets(assets, 'simple').get(entry.id)).toBe(simple);
+      expect(visibleAssets(assets, 'detailed').get(entry.id)).toBe(generic);
+    }
+    const before = { ...formats[1], background: 'transparent' };
+    const after = { ...formats[0], background: 'transparent' };
+    const layer = placeAsset(simple, before);
+    const available = visibleAssets([simple], 'detailed');
+    expect(available.size).toBe(0);
+    const resolved = assetsForLayers([simple], available);
+    const resized = resizeLayers([layer], before, after, new Map([[entry.id, simple]]), resolved);
+    expect(resized[0]).toEqual({ ...layer, x: layer.x * 2, y: layer.y * 2, scale: layer.scale * 2 });
+    expect(exportSvg(after, resized, resolved, new Map())).toContain('M5 7L40 15Z');
   });
 
   it('validates separate palettes for backgrounds and objects', () => {

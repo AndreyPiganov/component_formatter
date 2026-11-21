@@ -6,7 +6,7 @@ import {
 import { loadLibrary, selectObjects, type CompositionMode } from './api';
 import { Canvas } from './Canvas';
 import { assetPalette, parseScheme, schemes, type Scheme } from './palette';
-import { arrangeObjects, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
+import { arrangeObjects, assetsForLayers, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
 import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } from './svg';
 
 type Background = number | 'transparent';
@@ -24,7 +24,14 @@ export default function App() {
   const [sourceAssets, setSourceAssets] = useState<SvgAsset[]>([]);
   const [imported, setImported] = useState<SvgAsset[]>([]);
   const [libraryStatus, setLibraryStatus] = useState('Загрузка библиотеки…');
-  const [layers, setLayers] = useState<Layer[]>([]);
+  const [layers, updateLayers] = useState<Layer[]>([]);
+  const revision = useRef(0);
+  const [proposal, setProposal] = useState<{ layers: Layer[]; message: string } | null>(null);
+
+  function setLayers(update: Layer[] | ((current: Layer[]) => Layer[])) {
+    revision.current++;
+    updateLayers(update);
+  }
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formatIndex, setFormatIndex] = useState(0);
   const [paletteList, setPaletteList] = useState<Scheme[]>(schemes);
@@ -59,14 +66,17 @@ export default function App() {
     background: background === 'transparent' ? 'transparent' : backgroundColors[background],
   };
   const available = useMemo(() => visibleAssets(assets, format.detail), [assets, format.detail]);
-  const palettes = useMemo(() => new Map([...available].map(([id, asset]) =>
-    [id, assetPalette(asset, scheme)])), [available, scheme]);
+  const sceneAssets = useMemo(() => assetsForLayers(assets, available), [assets, available]);
+  const retained = [...new Set(layers.filter((layer) => !available.has(layer.assetId))
+    .map((layer) => sceneAssets.get(layer.assetId)?.name))];
+  const palettes = useMemo(() => new Map([...sceneAssets].map(([id, asset]) =>
+    [id, assetPalette(asset, scheme)])), [sceneAssets, scheme]);
   const filtered = [...available.values()].filter((asset) => {
     const item = [asset.name, asset.source, ...asset.tags].join(' ').toLocaleLowerCase('ru');
     return item.includes(query.trim().toLocaleLowerCase('ru'));
   });
   const selected = layers.find((layer) => layer.id === selectedId);
-  const selectedAsset = selected && available.get(selected.assetId);
+  const selectedAsset = selected && sceneAssets.get(selected.assetId);
 
   async function importAssets(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -144,13 +154,16 @@ export default function App() {
     const nextAssets = visibleAssets(assets, nextFormat.detail);
     setLayers((current) => resizeLayers(current, artboard, {
       width: nextFormat.width, height: nextFormat.height, background: artboard.background,
-    }, available, nextAssets));
+    }, sceneAssets, assetsForLayers(assets, nextAssets)));
+    setProposal(null);
     setFormatIndex(index);
   }
 
   async function compose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (building || !prompt.trim() || !available.size) return;
+    const startedAt = revision.current;
+    setProposal(null);
     setBuilding(true);
     setStatus('');
     try {
@@ -165,12 +178,18 @@ export default function App() {
         return;
       }
       const scene = arrangeObjects(chosen, artboard);
-      setLayers(scene);
-      setSelectedId(null);
       const method = selection.method === 'ai' ? ' Подбор по смыслу.' :
         selection.method === 'keywords' ? ' Подбор по тегам.' : '';
       const unmatched = selection.unmatched.length ? ' Не добавлены: ' + selection.unmatched.join(', ') + '.' : '';
-      setStatus('Добавлено объектов: ' + chosen.length + '.' + method + unmatched);
+      const message = 'Добавлено объектов: ' + chosen.length + '.' + method + unmatched;
+      if (revision.current === startedAt) {
+        setLayers(scene);
+        setSelectedId(null);
+        setStatus(message);
+      } else {
+        setProposal({ layers: scene, message });
+        setStatus('');
+      }
     } catch (error) {
       setStatus((error as Error).message);
     } finally {
@@ -185,7 +204,7 @@ export default function App() {
         <h1>Компоновщик</h1>
       </div>
       <button className="button primary" disabled={!layers.length}
-        onClick={() => saveFile(exportSvg(artboard, layers, available, palettes))}>
+        onClick={() => saveFile(exportSvg(artboard, layers, sceneAssets, palettes))}>
         <Download size={16} /> Скачать SVG
       </button>
     </header>
@@ -252,9 +271,21 @@ export default function App() {
             {formats.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
           </select>
         </div>
-        <Canvas artboard={artboard} layers={layers} assets={available} palettes={palettes}
+        <Canvas artboard={artboard} layers={layers} assets={sceneAssets} palettes={palettes}
           selectedId={selectedId} select={setSelectedId}
           move={(id, x, y) => patchLayer(id, { x, y })} remove={deleteLayer} />
+        {retained.length > 0 && <p className="status">Для этого размера нет варианта у объектов
+          {' «' + retained.join('», «') + '»'}. На холсте сохранена прежняя детализация.</p>}
+        {proposal && <div className="status" role="status">
+          Вы изменили сцену во время подбора. Заменить её собранной композицией?
+          {' '}<button className="button secondary" onClick={() => {
+            setLayers(proposal.layers);
+            setSelectedId(null);
+            setStatus(proposal.message);
+            setProposal(null);
+          }}>Заменить сцену</button>
+          {' '}<button className="button secondary" onClick={() => setProposal(null)}>Оставить мою</button>
+        </div>}
         {status && <output className="status" aria-live="polite">{status}</output>}
       </section>
 
@@ -288,8 +319,8 @@ export default function App() {
           <ul className="layers">
             {[...layers].reverse().map((layer) => <li key={layer.id}>
               <button aria-pressed={layer.id === selectedId} onClick={() => setSelectedId(layer.id)}>
-                {available.get(layer.assetId)?.name ?? layer.assetId}
-                {available.get(layer.assetId)?.role === 'background' && <small>Фон</small>}
+                {sceneAssets.get(layer.assetId)?.name ?? layer.assetId}
+                {sceneAssets.get(layer.assetId)?.role === 'background' && <small>Фон</small>}
               </button>
             </li>)}
           </ul>
@@ -333,7 +364,7 @@ function NumberField({ label, value, min, onChange }: {
     <input type="number" key={value} defaultValue={value} min={min} onBlur={(event) => {
       const next = event.target.valueAsNumber;
       if (Number.isFinite(next) && Math.abs(next) < 1_000_000 && (min === undefined || next >= min)) {
-        onChange(next);
+        if (next !== value) onChange(next);
       } else {
         event.target.value = String(value);
       }
