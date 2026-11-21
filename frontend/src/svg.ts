@@ -9,6 +9,7 @@ export type Role = 'main' | 'background';
 
 export interface CatalogEntry {
   id: string;
+  componentId?: string;
   name: string;
   source: string;
   tags: string[];
@@ -37,6 +38,7 @@ export interface Layer {
   y: number;
   rotation: number;
   scale: number;
+  colorSlots?: Record<string, string>;
 }
 
 export function parseSvg(entry: CatalogEntry, markup: string): SvgAsset {
@@ -56,6 +58,8 @@ export function parseSvg(entry: CatalogEntry, markup: string): SvgAsset {
   }
   check.finish();
 
+  const usesCurrentColor = elements.some((element) => Array.from(element.attributes)
+    .some(({ value }) => /\bcurrentcolor\b/i.test(value)));
   // Make the SVG initial paints explicit so the palette can recolor inherited shapes too.
   const rootStyle = new Map(parseStyle(root.getAttribute('style') ?? ''));
   for (const attribute of ['fill', 'color']) {
@@ -70,10 +74,10 @@ export function parseSvg(entry: CatalogEntry, markup: string): SvgAsset {
     }
     for (const attribute of paintAttributes) {
       const value = element.getAttribute(attribute);
-      if (value) collectPaint(colors, value);
+      if (value && (attribute !== 'color' || usesCurrentColor)) collectPaint(colors, value);
     }
     for (const [property, value] of parseStyle(element.getAttribute('style') ?? '')) {
-      if (paintAttributes.includes(property)) collectPaint(colors, value);
+      if (paintAttributes.includes(property) && (property !== 'color' || usesCurrentColor)) collectPaint(colors, value);
     }
   }
   const { width, height, viewBox } = parseViewport((name) => root.getAttribute(name));
@@ -141,7 +145,8 @@ function serialize(element: Element) {
   return new XMLSerializer().serializeToString(element);
 }
 
-export function renderAsset(asset: SvgAsset, instanceId: string, palette: ReadonlyMap<string, string>) {
+export function renderAsset(asset: SvgAsset, instanceId: string, palette: ReadonlyMap<string, string>,
+  colorSlots?: Layer['colorSlots']) {
   const root = asset.root.cloneNode(true) as SVGSVGElement;
   const elements = [root, ...Array.from(root.querySelectorAll('*'))];
   const replacements = new Map<string, string>();
@@ -157,7 +162,7 @@ export function renderAsset(asset: SvgAsset, instanceId: string, palette: Readon
     if (!palette.size) return value;
     const important = value.match(/\s*!important\s*$/i)?.[0] ?? '';
     const paint = parsePaint(important ? value.slice(0, -important.length) : value);
-    const replacement = paint && paint.alpha !== '00' ? palette.get(paint.hex) : undefined;
+    const replacement = paint && paint.alpha !== '00' ? palette.get(colorSlots?.[paint.hex] ?? paint.hex) : undefined;
     return replacement ? replacement + paint!.alpha + important : value;
   };
   const replaceUrls = (value: string) =>
@@ -207,7 +212,7 @@ export function exportSvg(
     const asset = assets.get(layer.assetId);
     if (!asset) return '';
     return '<g id="' + layer.id + '" transform="' + layerTransform(layer) + '">' +
-      renderAsset(asset, layer.id, palettes.get(asset.id) ?? new Map()) + '</g>';
+      renderAsset(asset, layer.id, palettes.get(asset.id) ?? new Map(), layer.colorSlots) + '</g>';
   }).join('');
   return opening + fill + objects + '</svg>';
 }

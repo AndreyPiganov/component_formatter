@@ -14,10 +14,10 @@ interface CanvasProps {
 }
 
 const emptyPalette = new Map<string, string>();
-const VectorObject = memo(function VectorObject({ asset, id, palette }: {
-  asset: SvgAsset; id: string; palette: ReadonlyMap<string, string>;
+const VectorObject = memo(function VectorObject({ asset, id, palette, colorSlots }: {
+  asset: SvgAsset; id: string; palette: ReadonlyMap<string, string>; colorSlots?: Layer['colorSlots'];
 }) {
-  const markup = useMemo(() => renderAsset(asset, 'preview-' + id, palette), [asset, id, palette]);
+  const markup = useMemo(() => renderAsset(asset, 'preview-' + id, palette, colorSlots), [asset, id, palette, colorSlots]);
   return <g aria-hidden="true" pointerEvents="none" dangerouslySetInnerHTML={{ __html: markup }} />;
 });
 
@@ -88,7 +88,7 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
           if (!asset) return null;
           return <g key={layer.id} data-layer={layer.id} transform={layerTransform(layer)}
             onPointerDown={(event) => start(event, layer)}>
-            <VectorObject asset={asset} id={layer.id} palette={palettes.get(asset.id) ?? emptyPalette} />
+            <VectorObject asset={asset} id={layer.id} colorSlots={layer.colorSlots} palette={palettes.get(asset.id) ?? emptyPalette} />
             <rect className={layer.id === selectedId ? 'layer-hit selected' : 'layer-hit'}
               x={-asset.width / 2} y={-asset.height / 2} width={asset.width} height={asset.height}
               fill="transparent" vectorEffect="non-scaling-stroke" />

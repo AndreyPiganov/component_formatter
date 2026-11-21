@@ -38,6 +38,22 @@ describe('vector assets', () => {
     expect(asset.root.querySelector('path')?.getAttribute('fill')).toBe('#D7CDF580');
   });
 
+  it('exports separate recolor choices for duplicates and follows the active scheme', () => {
+    const asset = parseSvg(entry, fixture);
+    const artboard = { ...formats[0], background: 'transparent' };
+    const first = { ...placeAsset(asset, artboard), id: 'first', colorSlots: { '#d7cdf5': '#f9a3aa' } };
+    const second = { ...first, id: 'second', colorSlots: undefined };
+    for (const scheme of [schemes[1], schemes[2], undefined]) {
+      const svg = exportSvg(artboard, [first, second], new Map([[asset.id, asset]]),
+        new Map([[asset.id, assetPalette(asset, scheme)]]));
+      const xml = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      expect(xml.querySelector('#first path')?.getAttribute('fill')?.toLowerCase())
+        .toBe((scheme?.objects[1] ?? '#d7cdf5') + '80');
+      expect(xml.querySelector('#second path')?.getAttribute('fill')?.toLowerCase())
+        .toBe((scheme?.background[0] ?? '#d7cdf5') + '80');
+    }
+  });
+
   it.each([
     '<script/>', '<image href="#pixel"/>', '<use href="https://example.com/asset.svg"/>',
     '<path onload="run()"/>', '<rect fill="url(https://example.com/red.svg)"/>',

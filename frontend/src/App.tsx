@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { loadLibrary, selectObjects, type CompositionMode } from './api';
 import { Canvas } from './Canvas';
-import { assetPalette, parseScheme, schemes, type Scheme } from './palette';
+import { assetPalette, parseScheme, schemeColors, schemes, type Scheme } from './palette';
 import { arrangeObjects, assetsForLayers, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
 import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } from './svg';
 
@@ -80,6 +80,9 @@ export default function App() {
   });
   const selected = layers.find((layer) => layer.id === selectedId);
   const selectedAsset = selected && sceneAssets.get(selected.assetId);
+
+  const otherRole = selectedAsset?.componentId && [...available.values()].find((asset) =>
+    asset.componentId === selectedAsset.componentId && asset.role !== selectedAsset.role);
 
   async function importAssets(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -333,6 +336,39 @@ export default function App() {
 
         {selected && selectedAsset && <section className="inspector-section">
           <div className="panel-title"><h2>{selectedAsset.name}</h2></div>
+          {otherRole && <label className="role-field">Роль объекта
+            <select value={selectedAsset.role} onChange={() => patchLayer(selected.id, {
+              assetId: otherRole.id,
+              scale: selected.scale * Math.max(selectedAsset.width, selectedAsset.height) /
+                Math.max(otherRole.width, otherRole.height),
+              colorSlots: undefined,
+            })}>
+              <option value="main">Главный</option>
+              <option value="background">Фоновый</option>
+            </select>
+          </label>}
+          {scheme && selectedAsset.colors.length > 0 && <fieldset className="object-colors">
+            <legend>Цвета объекта</legend>
+            {selectedAsset.colors.map((source) => {
+              const palette = palettes.get(selectedAsset.id)!;
+              const base = schemeColors(schemes[0], selectedAsset.role);
+              const targets = schemeColors(scheme, selectedAsset.role);
+              const chosen = selected.colorSlots?.[source];
+              const index = chosen ? base.indexOf(chosen) : targets.indexOf(palette.get(source)!);
+              return <label key={source} className="object-paint">
+                <span className="swatch" style={{ backgroundColor: source }} title={'Исходный цвет ' + source} />
+                <span aria-hidden="true">→</span>
+                <span className="swatch" style={{ backgroundColor: targets[index] }} />
+                <select aria-label={'Замена цвета ' + source} value={index} onChange={(event) =>
+                  patchLayer(selected.id, { colorSlots: { ...selected.colorSlots, [source]: base[Number(event.target.value)] } })}>
+                  {targets.map((color, slot) => <option key={slot} value={slot}>{color.toUpperCase()}</option>)}
+                </select>
+              </label>;
+            })}
+            {selected.colorSlots && <button className="button secondary"
+              onClick={() => patchLayer(selected.id, { colorSlots: undefined })}>Сбросить цвета объекта</button>}
+          </fieldset>}
+          {!scheme && <p className="muted">Для перекраски объекта выберите цветовую схему.</p>}
           <div className="fields">
             <NumberField label="X" value={Math.round(selected.x)} onChange={(x) => patchLayer(selected.id, { x })} />
             <NumberField label="Y" value={Math.round(selected.y)} onChange={(y) => patchLayer(selected.id, { y })} />
