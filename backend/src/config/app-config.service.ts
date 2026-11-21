@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { readDatabaseUrl } from './database.config';
 
 @Injectable()
 export class AppConfigService {
@@ -8,6 +9,10 @@ export class AppConfigService {
 
   get assetsDir() {
     return process.env.ASSETS_DIR || '../assets';
+  }
+
+  get databaseUrl() {
+    return readDatabaseUrl();
   }
 
   get openAiApiKey() {

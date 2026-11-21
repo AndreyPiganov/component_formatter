@@ -1,5 +1,6 @@
-import type { LibraryCatalog } from '../domain/library.types';
+import type { LibraryAsset } from '../domain/library.types';
 
 export abstract class LibraryRepository {
-  abstract readCatalog(): Promise<LibraryCatalog>;
+  abstract listVariants(): Promise<LibraryAsset[]>;
+  abstract syncCatalog(entries: LibraryAsset[], complete: boolean): Promise<void>;
 }

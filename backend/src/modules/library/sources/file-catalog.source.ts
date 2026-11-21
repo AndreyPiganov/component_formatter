@@ -4,25 +4,23 @@ import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { readCatalogComponent } from '../../../common/domain/catalog-component';
 import { AppConfigService } from '../../../config/app-config.service';
 import type { LibraryCatalog } from '../domain/library.types';
-import { LibraryRepository } from './library.repository';
 
 @Injectable()
-export class FileLibraryRepository implements LibraryRepository {
-  private readonly logger = new Logger(FileLibraryRepository.name);
+export class FileCatalogSource {
+  private readonly logger = new Logger(FileCatalogSource.name);
 
   constructor(private readonly config: AppConfigService) {}
 
-  async readCatalog(): Promise<LibraryCatalog> {
+  async readCatalog(): Promise<LibraryCatalog | undefined> {
     const directory = resolve(this.config.assetsDir);
     const catalog: LibraryCatalog = { entries: [], skipped: 0 };
     let manifest: unknown;
     try {
       manifest = JSON.parse(await readFile(resolve(directory, 'catalog.json'), 'utf8'));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        this.logger.warn('Не удалось прочитать assets/catalog.json.');
-        catalog.skipped = 1;
-      }
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      this.logger.warn('Не удалось прочитать assets/catalog.json.');
+      catalog.skipped = 1;
       return catalog;
     }
     if (!Array.isArray(manifest)) {

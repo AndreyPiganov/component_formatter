@@ -1,0 +1,42 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ComponentRole {
+  main
+  background
+}
+
+enum VariantDetail {
+  simple
+  detailed
+  any
+}
+
+model Component {
+  id       String             @id @db.VarChar(64)
+  variants ComponentVariant[]
+
+  @@map("components")
+}
+
+model ComponentVariant {
+  componentId String        @map("component_id") @db.VarChar(64)
+  detail      VariantDetail
+  name        String        @db.VarChar(160)
+  role        ComponentRole
+  tags        String[]
+  source      String        @db.VarChar(120)
+  svg         String        @db.Text
+  sortOrder   Int           @map("sort_order")
+  component   Component     @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@id([componentId, detail])
+  @@map("component_variants")
+}
