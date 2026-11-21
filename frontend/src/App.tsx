@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   ArrowDown, ArrowUp, Copy, Download, Grid2X2, Layers, Palette, Plus,
-  Search, Trash2, Upload,
+  Search, Sparkles, Trash2, Upload,
 } from 'lucide-react';
+import { loadLibrary, selectObjects, type CompositionMode } from './api';
 import { Canvas } from './Canvas';
 import { assetPalette, parseScheme, schemes, type Scheme } from './palette';
-import { formats, placeAsset, resizeLayers, visibleAssets } from './scene';
+import { arrangeObjects, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
 import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } from './svg';
 
 type Background = number | 'transparent';
@@ -20,7 +21,9 @@ function saveFile(svg: string) {
 }
 
 export default function App() {
-  const [assets, setAssets] = useState<SvgAsset[]>([]);
+  const [sourceAssets, setSourceAssets] = useState<SvgAsset[]>([]);
+  const [imported, setImported] = useState<SvgAsset[]>([]);
+  const [libraryStatus, setLibraryStatus] = useState('Загрузка библиотеки…');
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formatIndex, setFormatIndex] = useState(0);
@@ -28,10 +31,26 @@ export default function App() {
   const [schemeIndex, setSchemeIndex] = useState(0);
   const [background, setBackground] = useState<Background>(0);
   const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<CompositionMode>('metaphor');
+  const [prompt, setPrompt] = useState('');
+  const [building, setBuilding] = useState(false);
   const [status, setStatus] = useState('');
   const libraryUpload = useRef<HTMLInputElement>(null);
   const paletteUpload = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const request = new AbortController();
+    loadLibrary(request.signal).then((library) => {
+      if (request.signal.aborted) return;
+      setSourceAssets(library.assets);
+      setLibraryStatus(library.skipped ? 'Пропущено SVG: ' + library.skipped : '');
+    }).catch(() => {
+      if (!request.signal.aborted) setLibraryStatus('Готовая библиотека недоступна.');
+    });
+    return () => request.abort();
+  }, []);
+
+  const assets = useMemo(() => [...sourceAssets, ...imported], [sourceAssets, imported]);
   const format = formats[formatIndex];
   const scheme = paletteList[schemeIndex];
   const backgroundColors = (scheme ?? schemes[0]).background;
@@ -58,7 +77,7 @@ export default function App() {
     for (const file of files) {
       try {
         if (file.size > maxSvgBytes) throw new Error('Максимальный размер SVG — 1 МБ.');
-        const name = file.name.replace(/\.svg$/i, '').replace(/[-_]+/g, ' ');
+        const name = file.name.replace(/\.svg$/i, '').replace(/[-_]+/g, ' ').trim().slice(0, 160) || 'Объект';
         loaded.push(parseSvg({
           id: newId(), name, source: 'Импорт SVG', tags: [], detail: 'any', role: 'main',
         }, await file.text()));
@@ -66,7 +85,7 @@ export default function App() {
         errors.push(file.name + ' · ' + (error as Error).message);
       }
     }
-    setAssets((current) => [...current, ...loaded]);
+    setImported((current) => [...current, ...loaded]);
     setStatus('Импортировано SVG: ' + loaded.length + '. ' + errors.slice(0, 3).join(' '));
   }
 
@@ -129,6 +148,36 @@ export default function App() {
     setFormatIndex(index);
   }
 
+  async function compose(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (building || !prompt.trim() || !available.size) return;
+    setBuilding(true);
+    setStatus('');
+    try {
+      const selection = await selectObjects(mode, prompt, available.values());
+      const chosen = selection.ids.flatMap((id) => {
+        const asset = available.get(id);
+        return asset ? [asset] : [];
+      });
+      if (!chosen.length) {
+        setStatus(selection.unmatched.length ? 'Не найдены: ' + selection.unmatched.join(', ') :
+          'В библиотеке нет совпадений. Уточните заголовок или укажите названия объектов.');
+        return;
+      }
+      const scene = arrangeObjects(chosen, artboard);
+      setLayers(scene);
+      setSelectedId(null);
+      const method = selection.method === 'ai' ? ' Подбор по смыслу.' :
+        selection.method === 'keywords' ? ' Подбор по тегам.' : '';
+      const unmatched = selection.unmatched.length ? ' Не добавлены: ' + selection.unmatched.join(', ') + '.' : '';
+      setStatus('Добавлено объектов: ' + chosen.length + '.' + method + unmatched);
+    } catch (error) {
+      setStatus((error as Error).message);
+    } finally {
+      setBuilding(false);
+    }
+  }
+
   return <>
     <header className="app-header">
       <div className="brand">
@@ -154,6 +203,7 @@ export default function App() {
           <input placeholder="Найти объект" aria-label="Найти объект" value={query}
             onChange={(event) => setQuery(event.target.value)} />
         </label>
+        {libraryStatus && <p className="muted" role="status">{libraryStatus}</p>}
         {available.size === 0 && <div className="library-empty">
           <p>Загрузите SVG-компоненты, чтобы собрать композицию.</p>
           <button className="button secondary" onClick={() => libraryUpload.current?.click()}>
@@ -177,9 +227,27 @@ export default function App() {
       </aside>
 
       <section className="work-area" aria-label="Рабочая область">
+        <form className="compose-form" onSubmit={compose} aria-label="Автосборка композиции">
+          <div className="compose-modes" role="group" aria-label="Способ подбора">
+            <button type="button" aria-pressed={mode === 'metaphor'} onClick={() => setMode('metaphor')}>
+              <Sparkles size={15} /> По метафоре
+            </button>
+            <button type="button" aria-pressed={mode === 'names'} onClick={() => setMode('names')}>
+              По названиям
+            </button>
+          </div>
+          <div className="compose-input">
+            <textarea rows={2} aria-label={mode === 'metaphor' ? 'Метафора или заголовок' : 'Названия объектов'}
+              placeholder={mode === 'metaphor' ? 'Метафора или заголовок' : 'Например: книга, лампа, наушники (фон)'}
+              value={prompt} maxLength={400} onChange={(event) => setPrompt(event.target.value)} />
+            <button className="button primary" disabled={!available.size || !prompt.trim() || building}>
+              {building ? 'Подбираем…' : layers.length ? 'Пересобрать' : 'Собрать'}
+            </button>
+          </div>
+        </form>
         <div className="work-toolbar">
           <h2>Холст</h2>
-          <select aria-label="Размер холста" value={formatIndex}
+          <select aria-label="Размер холста" value={formatIndex} disabled={building}
             onChange={(event) => changeFormat(Number(event.target.value))}>
             {formats.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
           </select>

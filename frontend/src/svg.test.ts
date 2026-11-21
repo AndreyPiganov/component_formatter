@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { assetPalette, parseScheme, schemes } from './palette';
-import { formats, placeAsset, resizeLayers, visibleAssets } from './scene';
+import { arrangeObjects, formats, placeAsset, resizeLayers, visibleAssets } from './scene';
 import { exportSvg, parseSvg, renderAsset, type CatalogEntry } from './svg';
 
 const entry: CatalogEntry = {
@@ -69,5 +69,20 @@ describe('size variants and palette', () => {
     const paints = assetPalette(asset, schemes[2]);
     expect(paints.get('#d7cdf5')).toBe(schemes[2].background[0]);
     expect([...paints.values()].every((paint) => schemes[2].background.includes(paint))).toBe(true);
+  });
+
+  it('places background objects behind the main subject and fits each object inside the frame', () => {
+    const main = parseSvg(entry, fixture);
+    const background = parseSvg({ ...entry, id: 'book-bg', role: 'background' }, fixture);
+    const artboard = { ...formats[2], background: 'transparent' };
+    const scene = arrangeObjects([main, background, main], artboard);
+    expect(scene.map((layer) => layer.assetId)).toEqual([background.id, main.id, main.id]);
+    expect(new Set(scene.map((layer) => layer.id)).size).toBe(3);
+    for (const { x, y, scale } of scene) {
+      expect(x - main.width * scale / 2).toBeGreaterThan(0);
+      expect(y - main.height * scale / 2).toBeGreaterThan(0);
+      expect(x + main.width * scale / 2).toBeLessThan(artboard.width);
+      expect(y + main.height * scale / 2).toBeLessThan(artboard.height);
+    }
   });
 });

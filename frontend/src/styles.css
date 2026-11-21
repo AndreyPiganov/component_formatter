@@ -130,6 +130,45 @@ h2 { font-size: .96rem; font-weight: 680; }
 .asset-card span { overflow: hidden; overflow-wrap: anywhere; }
 
 .work-area { min-width: 0; position: relative; background: #f6f4f9; }
+.compose-form {
+  display: grid;
+  gap: .5rem;
+  background: white;
+  padding: .7rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.compose-modes { display: flex; gap: .3rem; flex-wrap: wrap; }
+.compose-modes button {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border: 0;
+  border-radius: 7px;
+  padding: .45rem .58rem;
+  background: none;
+  font-weight: 600;
+  font-size: .875rem;
+}
+.compose-modes button[aria-pressed="true"] { color: var(--accent); background: var(--accent-tint); }
+.compose-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .55rem;
+}
+.compose-input textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: .55rem .62rem;
+  resize: vertical;
+  background: #fbfaff;
+  color: inherit;
+  font: inherit;
+  font-size: .875rem;
+}
 .work-toolbar {
   display: flex;
   align-items: center;
@@ -160,7 +199,7 @@ select {
   justify-items: center;
   gap: .8rem;
   padding: clamp(1rem, 3vw, 2rem);
-  min-height: max(410px, calc(100dvh - 135px));
+  min-height: max(345px, calc(100dvh - 257px));
   background-image: radial-gradient(#d8d1e3 1px, transparent 1px);
   background-size: 16px 16px;
 }

@@ -7,8 +7,11 @@ export const formats = [
 ] satisfies { name: string; width: number; height: number; detail: Detail }[];
 
 export function visibleAssets(assets: SvgAsset[], detail: Detail) {
-  return new Map(assets.filter((asset) => asset.detail === detail || asset.detail === 'any')
-    .map((asset) => [asset.id, asset]));
+  const available = new Map(assets.map((asset) => [asset.id, asset]));
+  for (const asset of assets) {
+    if (asset.detail === detail || asset.detail === 'any') available.set(asset.id, asset);
+  }
+  return available;
 }
 
 export function placeAsset(asset: SvgAsset, artboard: Artboard, x = artboard.width / 2, y = artboard.height / 2) {
@@ -35,4 +38,56 @@ export function resizeLayers(
         Math.max(newAsset.width, newAsset.height),
     }];
   });
+}
+
+interface Slot {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function slots(count: number, artboard: Artboard): Slot[] {
+  if (count === 1) return [{ x: .5, y: .51, w: .72, h: .7 }];
+  if (count === 2) return [
+    { x: .32, y: .54, w: .47, h: .65 },
+    { x: .73, y: .43, w: .33, h: .46 },
+  ];
+  if (count === 3 || count === 4) {
+    return [
+      { x: .33, y: .54, w: .48, h: .7 },
+      ...Array.from({ length: count - 1 }, (_, index) => ({
+        x: .76, y: (index + 0.5) / (count - 1) * .84 + .08, w: .3, h: .76 / (count - 1),
+      })),
+    ];
+  }
+  const columns = artboard.width / artboard.height > 1.4 ? Math.ceil(count / 2) : Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / columns);
+  return Array.from({ length: count }, (_, index) => {
+    const row = Math.floor(index / columns);
+    const rowCount = Math.min(columns, count - row * columns);
+    return {
+      x: (index % columns + .5) / rowCount,
+      y: (row + .5) / rows,
+      w: .83 / columns, h: .76 / rows,
+    };
+  });
+}
+
+export function arrangeObjects(assets: SvgAsset[], artboard: Artboard): Layer[] {
+  if (!assets.length) return [];
+  const foreground = assets.filter((asset) => asset.role === 'main');
+  const background = assets.filter((asset) => asset.role === 'background');
+  const focus = foreground.length ? foreground : background;
+  const frame = slots(focus.length, artboard);
+  const inSlot = (asset: SvgAsset, slot: Slot): Layer => ({
+    id: newId(), assetId: asset.id, rotation: 0,
+    x: Math.round(slot.x * artboard.width), y: Math.round(slot.y * artboard.height),
+    scale: Math.min(slot.w * artboard.width / asset.width, slot.h * artboard.height / asset.height),
+  });
+  const accents = foreground.length ? background.map((asset, index) => inSlot(asset, {
+    x: (index + .5) / background.length, y: index % 2 === 0 ? .78 : .24,
+    w: Math.min(.42, .88 / background.length), h: .37,
+  })) : [];
+  return [...accents, ...focus.map((asset, index) => inSlot(asset, frame[index]))];
 }

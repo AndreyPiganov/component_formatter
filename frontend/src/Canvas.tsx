@@ -75,7 +75,7 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
 
   return <div className="canvas-space">
     <div className="artboard" style={{
-      width: 'min(100%, ' + 62 * artboard.width / artboard.height + 'vh)',
+      width: 'min(100%, ' + 57 * artboard.width / artboard.height + 'vh)',
       aspectRatio: artboard.width + ' / ' + artboard.height,
       backgroundColor: artboard.background,
     }}>
