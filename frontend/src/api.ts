@@ -1,4 +1,4 @@
-import { parseSvg, type CatalogEntry, type SvgAsset } from './svg';
+import { parseSvg, type CatalogEntry, type Detail, type SvgAsset } from './svg';
 
 export type CompositionMode = 'names' | 'metaphor';
 
@@ -24,12 +24,11 @@ export async function loadLibrary(signal: AbortSignal) {
   return { assets, skipped };
 }
 
-export async function selectObjects(mode: CompositionMode, text: string, assets: Iterable<SvgAsset>) {
-  const candidates = Array.from(assets, ({ id, name, tags, role }) => ({ id, name, tags, role }));
+export async function selectObjects(mode: CompositionMode, text: string, detail: Detail) {
   const response = await fetch('/api/compositions/select', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode, text, candidates }),
+    body: JSON.stringify({ mode, text, detail }),
     signal: AbortSignal.timeout(16_000),
   });
   if (!response.ok) throw new Error('Не удалось собрать композицию. Проверьте запрос и повторите.');

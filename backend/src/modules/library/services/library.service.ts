@@ -22,6 +22,10 @@ export class LibraryService implements OnModuleInit {
     this.skipped = catalog.skipped;
   }
 
+  listCandidates(detail?: 'simple' | 'detailed', ids?: string[]) {
+    return this.repository.listCandidates(detail, ids);
+  }
+
   async getCatalog(): Promise<LibraryCatalog> {
     return { entries: await this.repository.listVariants(), skipped: this.skipped };
   }

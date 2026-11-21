@@ -10,7 +10,8 @@ const candidates = [
   { id: 'book-background', name: 'Раскрытая книга', role: 'background', tags: ['книга', 'учёба'] },
   { id: 'lamp-main', name: 'Настольная лампа', role: 'main', tags: ['лампа', 'идея', 'свет'] },
 ];
-const local = new CompositionService({ select: async () => undefined });
+const catalog = { listCandidates: async (_detail, ids) => candidates.filter((item) => !ids || ids.includes(item.id)) };
+const local = new CompositionService({ select: async () => undefined }, catalog);
 
 test('selects explicit names and backgrounds in order and reports unresolved names', async () => {
   const input = readCompositionRequest({ mode: 'names', text: 'КНИГА, книга (фон); лампа\nкомпас', candidates });
@@ -55,9 +56,18 @@ test('constrains model output to the catalog and falls back when an unknown ID i
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(body) }] }],
     }));
   });
-  const service = new CompositionService(new OpenAiClient(new AppConfigService()));
-  const input = { mode: 'metaphor', text: 'свет', candidates };
+  const service = new CompositionService(new OpenAiClient(new AppConfigService()), catalog);
+  const input = readCompositionRequest({ mode: 'metaphor', text: 'свет', detail: 'simple' });
   assert.deepEqual(await service.select(input), { method: 'ai', ids: ['book-main'], unmatched: [] });
   body.ids = ['invented'];
   assert.deepEqual(await service.select(input), { method: 'keywords', ids: ['lamp-main'], unmatched: [] });
+});
+
+test('client-supplied names and unknown objects cannot enter the official selection', async () => {
+  const input = readCompositionRequest({ mode: 'names', text: 'логотип, книга', candidates: [
+    { ...candidates[0], name: 'логотип', tags: ['логотип'] },
+    { ...candidates[0], id: 'fake', name: 'логотип' },
+  ] });
+  assert.deepEqual(await local.select(input), { ids: ['book-main'], unmatched: ['логотип'], method: 'names' });
+  assert.throws(() => readCompositionRequest({ mode: 'names', text: 'книга', detail: 'invalid' }));
 });

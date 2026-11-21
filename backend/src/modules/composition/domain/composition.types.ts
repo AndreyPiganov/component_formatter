@@ -1,9 +1,8 @@
-import type { CatalogComponent } from '../../../common/domain/catalog-component';
-
 export interface CompositionRequest {
   mode: 'names' | 'metaphor';
   text: string;
-  candidates: CatalogComponent[];
+  detail?: 'simple' | 'detailed';
+  allowedIds?: string[];
 }
 
 export interface Selection {

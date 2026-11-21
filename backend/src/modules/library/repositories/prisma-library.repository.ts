@@ -17,6 +17,16 @@ export class PrismaLibraryRepository implements LibraryRepository {
     }));
   }
 
+  async listCandidates(detail?: 'simple' | 'detailed', ids?: string[]) {
+    const variants = await this.prisma.client.componentVariant.findMany({
+      where: { detail: detail && { in: [detail, 'any'] }, publicId: ids && { in: ids } },
+      select: { publicId: true, role: true, component: { select: { name: true, tags: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { publicId: 'asc' }],
+      distinct: ['publicId'],
+    });
+    return variants.map(({ publicId, role, component }) => ({ id: publicId, role, ...component }));
+  }
+
   async syncCatalog(entries: LibraryAsset[], complete: boolean): Promise<void> {
     const subjects = new Map(entries.map(({ componentId, name, tags }) => [componentId, { name, tags }]));
     const keys = entries.map(({ componentId, role, detail, id: publicId }) => ({ componentId, role, detail, publicId }));

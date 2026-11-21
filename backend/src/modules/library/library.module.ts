@@ -9,6 +9,7 @@ import { FileCatalogSource } from './sources/file-catalog.source';
 
 @Module({
   imports: [AppConfigModule, PrismaModule],
+  exports: [LibraryService],
   controllers: [LibraryController],
   providers: [LibraryService, FileCatalogSource, { provide: LibraryRepository, useClass: PrismaLibraryRepository }],
 })

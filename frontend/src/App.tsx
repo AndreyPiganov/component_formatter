@@ -11,10 +11,10 @@ import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } fr
 
 type Background = number | 'transparent';
 
-function saveFile(svg: string) {
+function saveFile(svg: string, personal: boolean) {
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
   const link = document.createElement('a');
-  link.download = 'composition.svg';
+  link.download = personal ? 'personal-composition.svg' : 'composition.svg';
   link.href = url;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -71,6 +71,9 @@ export default function App() {
     .map((layer) => sceneAssets.get(layer.assetId)?.name))];
   const palettes = useMemo(() => new Map([...sceneAssets].map(([id, asset]) =>
     [id, assetPalette(asset, scheme)])), [sceneAssets, scheme]);
+  const personalIds = useMemo(() => new Set(imported.map(({ id }) => id)), [imported]);
+  const personalScene = layers.some((layer) => personalIds.has(layer.assetId));
+  const hasCatalog = [...available.keys()].some((id) => !personalIds.has(id));
   const filtered = [...available.values()].filter((asset) => {
     const item = [asset.name, asset.source, ...asset.tags].join(' ').toLocaleLowerCase('ru');
     return item.includes(query.trim().toLocaleLowerCase('ru'));
@@ -89,7 +92,7 @@ export default function App() {
         if (file.size > maxSvgBytes) throw new Error('Максимальный размер SVG — 1 МБ.');
         const name = file.name.replace(/\.svg$/i, '').replace(/[-_]+/g, ' ').trim().slice(0, 160) || 'Объект';
         loaded.push(parseSvg({
-          id: newId(), name, source: 'Импорт SVG', tags: [], detail: 'any', role: 'main',
+          id: 'local:' + newId(), name, source: 'Импорт SVG', tags: [], detail: 'any', role: 'main',
         }, await file.text()));
       } catch (error) {
         errors.push(file.name + ' · ' + (error as Error).message);
@@ -161,13 +164,13 @@ export default function App() {
 
   async function compose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (building || !prompt.trim() || !available.size) return;
+    if (building || !prompt.trim() || !hasCatalog) return;
     const startedAt = revision.current;
     setProposal(null);
     setBuilding(true);
     setStatus('');
     try {
-      const selection = await selectObjects(mode, prompt, available.values());
+      const selection = await selectObjects(mode, prompt, format.detail);
       const chosen = selection.ids.flatMap((id) => {
         const asset = available.get(id);
         return asset ? [asset] : [];
@@ -204,7 +207,7 @@ export default function App() {
         <h1>Компоновщик</h1>
       </div>
       <button className="button primary" disabled={!layers.length}
-        onClick={() => saveFile(exportSvg(artboard, layers, sceneAssets, palettes))}>
+        onClick={() => saveFile(exportSvg(artboard, layers, sceneAssets, palettes), personalScene)}>
         <Download size={16} /> Скачать SVG
       </button>
     </header>
@@ -213,8 +216,8 @@ export default function App() {
       <aside className="panel library" aria-label="Библиотека">
         <div className="panel-title">
           <h2><Grid2X2 size={17} /> Библиотека</h2>
-          <button className="icon-button" aria-label="Загрузить SVG" title="Загрузить SVG"
-            onClick={() => libraryUpload.current?.click()}><Upload size={16} /></button>
+          <button className="button secondary" aria-label="Загрузить свой SVG" title="Загрузить свой SVG"
+            onClick={() => libraryUpload.current?.click()}><Upload size={16} /> Свой SVG</button>
           <input type="file" accept=".svg,image/svg+xml" multiple hidden ref={libraryUpload} onChange={importAssets} />
         </div>
         <label className="search">
@@ -230,10 +233,10 @@ export default function App() {
           </button>
         </div>}
         {available.size > 0 && filtered.length === 0 && <p className="muted">Объекты не найдены.</p>}
-        {(['main', 'background'] as const).map((role) => {
-          const items = filtered.filter((asset) => asset.role === role);
+        {(['main', 'background', 'personal'] as const).map((role) => {
+          const items = filtered.filter((asset) => personalIds.has(asset.id) ? role === 'personal' : asset.role === role);
           return items.length > 0 && <section className="asset-section" key={role}>
-            <h3>{role === 'main' ? 'Главные объекты' : 'Фоновые объекты'}</h3>
+            <h3>{role === 'personal' ? 'Мои SVG' : role === 'main' ? 'Главные объекты' : 'Фоновые объекты'}</h3>
             <div className="asset-grid">
               {items.map((asset) => <button className="asset-card" key={asset.id} onClick={() => addObject(asset)}
                 title={'Добавить «' + asset.name + '» · ' + asset.source}>
@@ -255,11 +258,12 @@ export default function App() {
               По названиям
             </button>
           </div>
+          {imported.length > 0 && <p className="muted">Автоподбор использует исходную библиотеку. Свои SVG можно добавить на холст вручную.</p>}
           <div className="compose-input">
             <textarea rows={2} aria-label={mode === 'metaphor' ? 'Метафора или заголовок' : 'Названия объектов'}
               placeholder={mode === 'metaphor' ? 'Метафора или заголовок' : 'Например: книга, лампа, наушники (фон)'}
               value={prompt} maxLength={400} onChange={(event) => setPrompt(event.target.value)} />
-            <button className="button primary" disabled={!available.size || !prompt.trim() || building}>
+            <button className="button primary" disabled={!hasCatalog || !prompt.trim() || building}>
               {building ? 'Подбираем…' : layers.length ? 'Пересобрать' : 'Собрать'}
             </button>
           </div>
@@ -274,6 +278,7 @@ export default function App() {
         <Canvas artboard={artboard} layers={layers} assets={sceneAssets} palettes={palettes}
           selectedId={selectedId} select={setSelectedId}
           move={(id, x, y) => patchLayer(id, { x, y })} remove={deleteLayer} />
+        {personalScene && <p className="status">В композиции есть ваши SVG. Они войдут в экспорт.</p>}
         {retained.length > 0 && <p className="status">Для этого размера нет варианта у объектов
           {' «' + retained.join('», «') + '»'}. На холсте сохранена прежняя детализация.</p>}
         {proposal && <div className="status" role="status">
