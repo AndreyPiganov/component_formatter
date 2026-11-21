@@ -37,6 +37,8 @@ export interface Layer {
   x: number;
   y: number;
   rotation: number;
+  flipX?: boolean;
+  flipY?: boolean;
   scale: number;
   colorSlots?: Record<string, string>;
 }
@@ -193,7 +195,10 @@ export function renderAsset(asset: SvgAsset, instanceId: string, palette: Readon
 }
 
 export function layerTransform(layer: Layer) {
-  return 'translate(' + layer.x + ' ' + layer.y + ') rotate(' + layer.rotation + ') scale(' + layer.scale + ')';
+  const scale = layer.flipX || layer.flipY
+    ? [layer.flipX ? -layer.scale : layer.scale, layer.flipY ? -layer.scale : layer.scale].join(' ')
+    : String(layer.scale);
+  return 'translate(' + layer.x + ' ' + layer.y + ') rotate(' + layer.rotation + ') scale(' + scale + ')';
 }
 
 export function newId() {

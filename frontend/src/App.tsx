@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
-  ArrowDown, ArrowUp, Copy, Download, Grid2X2, Layers, Palette, Plus,
+  ArrowDown, ArrowUp, Copy, Download, FlipHorizontal2, FlipVertical2, Grid2X2, Layers, Palette, Plus,
   Search, Sparkles, Trash2, Upload,
 } from 'lucide-react';
 import { loadLibrary, selectObjects, type CompositionMode } from './api';
@@ -131,6 +131,13 @@ export default function App() {
 
   function patchLayer(id: string, patch: Partial<Layer>) {
     setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, ...patch } : layer));
+  }
+
+  function resizeScene(id: string, scale: number, pivot: { x: number; y: number }) {
+    setLayers((current) => {
+      const layer = current.find((item) => item.id === id);
+      return layer ? scaleComposition(current, scale / layer.scale, pivot) : current;
+    });
   }
 
   function deleteLayer(id: string) {
@@ -278,12 +285,13 @@ export default function App() {
             {formats.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
           </select>
           {layers.length > 0 && <NumberField label="Размер композиции, %" value={Number((layers[0].scale * 100).toFixed(2))}
-            min={0.01} onChange={(percent) => setLayers((current) => scaleComposition(current,
-              percent / (100 * current[0].scale), { x: artboard.width / 2, y: artboard.height / 2 }))} />}
+            min={0.01} onChange={(percent) => resizeScene(layers[0].id, percent / 100,
+              { x: artboard.width / 2, y: artboard.height / 2 })} />}
         </div>
         <Canvas artboard={artboard} layers={layers} assets={sceneAssets} palettes={palettes}
           selectedId={selectedId} select={setSelectedId}
-          move={(id, x, y) => patchLayer(id, { x, y })} remove={deleteLayer} />
+          move={(id, x, y) => patchLayer(id, { x, y })} rotate={(id, rotation) => patchLayer(id, { rotation })}
+          resize={resizeScene} remove={deleteLayer} />
         {personalScene && <p className="status">В композиции есть ваши SVG. Они войдут в экспорт.</p>}
         {retained.length > 0 && <p className="status">Для этого размера нет варианта у объектов
           {' «' + retained.join('», «') + '»'}. На холсте сохранена прежняя детализация.</p>}
@@ -377,6 +385,14 @@ export default function App() {
               onChange={(rotation) => patchLayer(selected.id, { rotation })} />
           </div>
           <div className="layer-actions">
+            <button className="icon-button" aria-label="Отразить по горизонтали" title="Отразить по горизонтали"
+              aria-pressed={!!selected.flipX} onClick={() => patchLayer(selected.id, { flipX: !selected.flipX })}>
+              <FlipHorizontal2 size={16} />
+            </button>
+            <button className="icon-button" aria-label="Отразить по вертикали" title="Отразить по вертикали"
+              aria-pressed={!!selected.flipY} onClick={() => patchLayer(selected.id, { flipY: !selected.flipY })}>
+              <FlipVertical2 size={16} />
+            </button>
             <button className="icon-button" aria-label="Поднять слой" title="Поднять слой"
               disabled={layers.at(-1)?.id === selected.id} onClick={() => reorderLayer(selected.id, 1)}>
               <ArrowUp size={16} />

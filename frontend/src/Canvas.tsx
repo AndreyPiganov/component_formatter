@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { CanvasViewport } from './CanvasViewport';
 import { Layers } from 'lucide-react';
 import { layerTransform, renderAsset, type Artboard, type Layer, type SvgAsset } from './svg';
@@ -11,8 +11,17 @@ interface CanvasProps {
   selectedId: string | null;
   select: (id: string | null) => void;
   move: (id: string, x: number, y: number) => void;
+  rotate: (id: string, angle: number) => void;
+  resize: (id: string, scale: number, pivot: Point) => void;
   remove: (id: string) => void;
 }
+
+interface Point { x: number; y: number }
+type Gesture = { id: string; pointerId: number } & (
+  | { kind: 'move'; offset: Point }
+  | { kind: 'rotate'; center: Point; initialAngle: number; startDirection: number | null }
+  | { kind: 'resize'; pivot: Point; diagonal: Point; initialScale: number }
+);
 
 const emptyPalette = new Map<string, string>();
 const VectorObject = memo(function VectorObject({ asset, id, palette, colorSlots }: {
@@ -22,23 +31,57 @@ const VectorObject = memo(function VectorObject({ asset, id, palette, colorSlots
   return <g aria-hidden="true" pointerEvents="none" dangerouslySetInnerHTML={{ __html: markup }} />;
 });
 
-export function Canvas({ artboard, layers, assets, palettes, selectedId, select, move, remove }: CanvasProps) {
+export function Canvas({ artboard, layers, assets, palettes, selectedId, select, move, rotate, resize, remove }: CanvasProps) {
   const canvas = useRef<SVGSVGElement>(null);
-  const drag = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const drag = useRef<Gesture | null>(null);
+  const selected = layers.find((layer) => layer.id === selectedId);
+  const asset = selected && assets.get(selected.assetId);
+  const halfWidth = selected && asset ? selected.scale * asset.width / 2 : 0;
+  const halfHeight = selected && asset ? selected.scale * asset.height / 2 : 0;
+  const [pixel, setPixel] = useState(1);
+  useLayoutEffect(() => {
+    const svg = canvas.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const width = svg.getBoundingClientRect().width;
+      if (width > 0) setPixel(artboard.width / width);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, [artboard.width]);
 
   function pointerPosition(event: PointerEvent<SVGElement>) {
     const matrix = canvas.current?.getScreenCTM();
     return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
   }
 
-  function start(event: PointerEvent<SVGGElement>, layer: Layer) {
+  function start(event: PointerEvent<SVGElement>, layer: Layer, kind: Gesture['kind']) {
     if (event.button !== 0 || drag.current) return;
     const point = pointerPosition(event);
     if (!point || !canvas.current) return;
     event.stopPropagation();
-    canvas.current.focus();
+    event.preventDefault();
+    canvas.current.focus({ preventScroll: true });
     canvas.current.setPointerCapture(event.pointerId);
-    drag.current = { id: layer.id, pointerId: event.pointerId, offsetX: point.x - layer.x, offsetY: point.y - layer.y };
+    const pointer = { id: layer.id, pointerId: event.pointerId };
+    const offset = { x: point.x - layer.x, y: point.y - layer.y };
+    if (kind === 'rotate') {
+      drag.current = { ...pointer, kind, center: { x: layer.x, y: layer.y }, initialAngle: layer.rotation,
+        startDirection: Math.hypot(offset.x, offset.y) > pixel ? Math.atan2(offset.y, offset.x) : null };
+    } else if (kind === 'resize') {
+      // Keep the diagonally opposite corner fixed, even when the object is rotated.
+      const radians = layer.rotation * Math.PI / 180;
+      const pivot = {
+        x: layer.x - halfWidth * Math.cos(radians) + halfHeight * Math.sin(radians),
+        y: layer.y - halfWidth * Math.sin(radians) - halfHeight * Math.cos(radians),
+      };
+      drag.current = { ...pointer, kind, pivot, initialScale: layer.scale,
+        diagonal: { x: point.x - pivot.x, y: point.y - pivot.y } };
+    } else {
+      drag.current = { ...pointer, kind, offset };
+    }
     select(layer.id);
   }
 
@@ -46,8 +89,22 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
     const active = drag.current;
     if (!active || active.pointerId !== event.pointerId) return;
     const point = pointerPosition(event);
-    if (point) {
-      move(active.id, Math.round(point.x - active.offsetX), Math.round(point.y - active.offsetY));
+    if (!point) return;
+    if (active.kind === 'move') {
+      move(active.id, Math.round(point.x - active.offset.x), Math.round(point.y - active.offset.y));
+    } else if (active.kind === 'rotate') {
+      const dx = point.x - active.center.x, dy = point.y - active.center.y;
+      if (Math.hypot(dx, dy) < pixel) return;
+      const direction = Math.atan2(dy, dx);
+      active.startDirection ??= direction;
+      const angle = active.initialAngle + (direction - active.startDirection) * 180 / Math.PI;
+      rotate(active.id, ((Math.round(angle) % 360) + 360) % 360);
+    } else {
+      const { diagonal, pivot } = active;
+      const lengthSquared = diagonal.x ** 2 + diagonal.y ** 2;
+      if (!lengthSquared) return;
+      const factor = ((point.x - pivot.x) * diagonal.x + (point.y - pivot.y) * diagonal.y) / lengthSquared;
+      resize(active.id, Math.max(.0001, Math.min(9999, active.initialScale * factor)), pivot);
     }
   }
 
@@ -77,19 +134,36 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
   return <CanvasViewport artboard={artboard}>
     <svg className="scene" ref={canvas} viewBox={'0 0 ' + artboard.width + ' ' + artboard.height}
       tabIndex={0} aria-label="Интерактивный холст"
-      onPointerDown={() => select(null)} onPointerMove={update} onPointerUp={stop}
+      onPointerDown={() => { if (!drag.current) select(null); }} onPointerMove={update} onPointerUp={stop}
       onPointerCancel={stop} onLostPointerCapture={stop} onKeyDown={onKey}>
       {layers.map((layer) => {
         const asset = assets.get(layer.assetId);
         if (!asset) return null;
         return <g key={layer.id} data-layer={layer.id} transform={layerTransform(layer)}
-          onPointerDown={(event) => start(event, layer)}>
+          onPointerDown={(event) => start(event, layer, event.ctrlKey || event.metaKey ? 'rotate' : 'move')}>
           <VectorObject asset={asset} id={layer.id} colorSlots={layer.colorSlots} palette={palettes.get(asset.id) ?? emptyPalette} />
           <rect className={layer.id === selectedId ? 'layer-hit selected' : 'layer-hit'}
             x={-asset.width / 2} y={-asset.height / 2} width={asset.width} height={asset.height}
             fill="transparent" vectorEffect="non-scaling-stroke" />
         </g>;
       })}
+      {selected && asset && <g className="layer-controls"
+        transform={'translate(' + selected.x + ' ' + selected.y + ') rotate(' + selected.rotation + ')'}>
+        <line y1={-halfHeight} y2={-halfHeight - 22 * pixel} stroke="#683ae4" vectorEffect="non-scaling-stroke" />
+        <g transform={'translate(0 ' + (-halfHeight - 22 * pixel) + ')'} className="rotate-handle"
+          aria-label="Повернуть объект мышью" onPointerDown={(event) => start(event, selected, 'rotate')}>
+          <title>Повернуть объект</title>
+          <circle r={12 * pixel} fill="transparent" />
+          <circle r={6 * pixel} className="handle-mark" vectorEffect="non-scaling-stroke" />
+        </g>
+        <g transform={'translate(' + halfWidth + ' ' + halfHeight + ')'} className="scale-handle"
+          aria-label="Изменить размер композиции мышью" onPointerDown={(event) => start(event, selected, 'resize')}>
+          <title>Изменить размер всей композиции</title>
+          <circle r={12 * pixel} fill="transparent" />
+          <rect x={-5 * pixel} y={-5 * pixel} width={10 * pixel} height={10 * pixel}
+            className="handle-mark" vectorEffect="non-scaling-stroke" />
+        </g>
+      </g>}
     </svg>
     {layers.length === 0 && <div className="canvas-empty">
       <Layers size={32} strokeWidth={1.6} />

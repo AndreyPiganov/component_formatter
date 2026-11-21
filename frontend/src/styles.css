@@ -245,6 +245,12 @@ select {
 .layer-hit { cursor: grab; }
 .layer-hit:active { cursor: grabbing; }
 .layer-hit.selected { stroke: #683ae4; stroke-width: 1.5px; stroke-dasharray: 5 3; }
+.layer-controls line { pointer-events: none; }
+.rotate-handle { cursor: grab; }
+.rotate-handle:active { cursor: grabbing; }
+.scale-handle { cursor: nwse-resize; }
+.handle-mark { fill: white; stroke: #683ae4; stroke-width: 2px; }
+.layer-actions button[aria-pressed="true"] { color: var(--accent); background: var(--accent-tint); }
 .canvas-empty {
   position: absolute;
   inset: 0;

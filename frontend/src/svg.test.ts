@@ -30,6 +30,19 @@ describe('vector assets', () => {
     expect(doc.querySelector('#first path')?.getAttribute('fill')).toBe('#D7CDF580');
   });
 
+  it('exports rotation and both mirror axes around the layer center without changing source paths', () => {
+    const asset = parseSvg(entry, fixture);
+    const board = { ...formats[0], background: 'transparent' };
+    const layer = { ...placeAsset(asset, board), x: 220, y: 180, rotation: 72, scale: .5, flipX: true };
+    for (const flipY of [false, true]) {
+      const svg = exportSvg(board, [{ ...layer, flipY }], new Map([[asset.id, asset]]), new Map());
+      const xml = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      expect(xml.querySelector('g')?.getAttribute('transform')).toBe(
+        'translate(220 180) rotate(72) scale(-0.5 ' + (flipY ? '-0.5' : '0.5') + ')');
+      expect(xml.querySelector('path')?.getAttribute('d')).toBe('M5 7L40 15Z');
+    }
+  });
+
   it('recolors Figma paint slots and preserves alpha', () => {
     const asset = parseSvg(entry, fixture);
     const expected = renderAsset(asset, 'test', assetPalette(asset, schemes[1]));
