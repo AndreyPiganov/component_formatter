@@ -1,1 +1,5 @@
 /ТЗ.txt
+/assets/
+node_modules/
+dist/
+.env
