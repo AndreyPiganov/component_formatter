@@ -21,6 +21,8 @@ enum VariantDetail {
 
 model Component {
   id       String             @id @db.VarChar(64)
+  name     String             @db.VarChar(160)
+  tags     String[]
   variants ComponentVariant[]
 
   @@map("components")
@@ -29,14 +31,15 @@ model Component {
 model ComponentVariant {
   componentId String        @map("component_id") @db.VarChar(64)
   detail      VariantDetail
-  name        String        @db.VarChar(160)
+  publicId    String        @map("public_id") @db.VarChar(64)
   role        ComponentRole
-  tags        String[]
+  sourceFile  String?       @map("source_file")
   source      String        @db.VarChar(120)
   svg         String        @db.Text
   sortOrder   Int           @map("sort_order")
   component   Component     @relation(fields: [componentId], references: [id], onDelete: Restrict)
 
-  @@id([componentId, detail])
+  @@id([componentId, role, detail])
+  @@unique([publicId, detail])
   @@map("component_variants")
 }

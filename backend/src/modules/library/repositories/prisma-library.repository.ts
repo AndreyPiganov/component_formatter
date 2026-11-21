@@ -9,40 +9,42 @@ export class PrismaLibraryRepository implements LibraryRepository {
 
   async listVariants(): Promise<LibraryAsset[]> {
     const variants = await this.prisma.client.componentVariant.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { componentId: 'asc' }, { detail: 'asc' }],
+      include: { component: { select: { name: true, tags: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { publicId: 'asc' }, { detail: 'asc' }],
     });
-    return variants.map(({ componentId, name, role, tags, source, detail, svg }) => ({
-      id: componentId, name, role, tags, source, detail, svg,
+    return variants.map(({ publicId, component, componentId, role, source, sourceFile, detail, svg }) => ({
+      id: publicId, ...component, componentId, role, source, sourceFile, detail, svg,
     }));
   }
 
   async syncCatalog(entries: LibraryAsset[], complete: boolean): Promise<void> {
-    const components = [...new Set(entries.map(({ id }) => id))].map((id) => ({ id }));
-    const keys = entries.map(({ id, detail }) => ({ componentId: id, detail }));
+    const subjects = new Map(entries.map(({ componentId, name, tags }) => [componentId, { name, tags }]));
+    const keys = entries.map(({ componentId, role, detail, id: publicId }) => ({ componentId, role, detail, publicId }));
 
     await this.prisma.client.$transaction(async (tx) => {
       // A transaction-level lock serializes imports across backend instances.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(1128680788, 1)::text`;
 
-      if (components.length) {
-        await tx.component.createMany({ data: components, skipDuplicates: true });
-      }
-
-      for (const [sortOrder, { id: componentId, detail, ...variant }] of entries.entries()) {
-        const data = { ...variant, sortOrder };
-        await tx.componentVariant.upsert({
-          where: { componentId_detail: { componentId, detail } },
-          create: { componentId, detail, ...data },
-          update: data,
+      for (const [id, metadata] of subjects) {
+        // A partial snapshot cannot rename other stored variants of this subject.
+        await tx.component.upsert({
+          where: { id }, create: { id, ...metadata }, update: complete ? metadata : {},
         });
       }
 
       if (complete) {
-        await tx.componentVariant.deleteMany({
-          where: keys.length ? { NOT: { OR: keys } } : undefined,
-        });
-        await tx.component.deleteMany({ where: { variants: { none: {} } } });
+        await tx.componentVariant.deleteMany({ where: keys.length ? { NOT: { OR: keys } } : undefined });
       }
+      for (const [sortOrder, entry] of entries.entries()) {
+        const { componentId, role, detail, id: publicId, source, sourceFile, svg } = entry;
+        const key = { componentId, role, detail };
+        const data = { publicId, source, sourceFile, svg, sortOrder };
+        await tx.componentVariant.upsert({
+          where: { componentId_role_detail: key }, create: { ...key, ...data }, update: data,
+        });
+      }
+
+      if (complete) await tx.component.deleteMany({ where: { variants: { none: {} } } });
     }, { timeout: 30_000 });
   }
 }

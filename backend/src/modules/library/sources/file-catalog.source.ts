@@ -32,11 +32,14 @@ export class FileCatalogSource {
 
     const root = await realpath(directory);
     const keys = new Set<string>();
+    const styles = new Map<string, string>();
+    const subjects = new Map<string, string>();
+    const publicStyles = new Map<string, string>();
     for (const [index, record] of (manifest as unknown[]).entries()) {
       try {
         const component = readCatalogComponent(record);
-        const { file, source, detail } = component
-          ? record as { file?: unknown; source?: unknown; detail?: unknown }
+        const { file, source, detail, componentId: explicitId } = component
+          ? record as { file?: unknown; source?: unknown; detail?: unknown; componentId?: unknown }
           : {};
         if (!component || typeof file !== 'string' || isAbsolute(file) ||
             extname(file).toLowerCase() !== '.svg' ||
@@ -46,6 +49,18 @@ export class FileCatalogSource {
         }
         const key = detail + '/' + component.id;
         if (keys.has(key)) throw new Error('повторяющийся вариант ' + key);
+        const suffix = '-' + component.role;
+        const componentId = explicitId ?? (component.id.endsWith(suffix) ? component.id.slice(0, -suffix.length) : component.id);
+        if (typeof componentId !== 'string' || !/^[a-z\d][a-z\d_-]{0,63}$/i.test(componentId)) {
+          throw new Error('некорректный componentId');
+        }
+        const style = componentId + '/' + component.role;
+        const metadataKey = JSON.stringify([component.name, component.tags]);
+        if ((subjects.has(componentId) && subjects.get(componentId) !== metadataKey) ||
+            (styles.has(style) && styles.get(style) !== component.id) ||
+            (publicStyles.has(component.id) && publicStyles.get(component.id) !== style)) {
+          throw new Error('несогласованные варианты объекта ' + componentId);
+        }
         const target = await realpath(resolve(root, file));
         const localPath = relative(root, target);
         if (localPath === '..' || localPath.startsWith('..' + sep) || isAbsolute(localPath)) {
@@ -57,8 +72,11 @@ export class FileCatalogSource {
         }
         const svg = await readFile(target, 'utf8');
         validateCatalogSvg(svg);
-        catalog.entries.push({ ...component, source: source.trim().slice(0, 120), detail, svg });
+        catalog.entries.push({ ...component, componentId, sourceFile: localPath.split(sep).join('/'), source: source.trim().slice(0, 120), detail, svg });
         keys.add(key);
+        styles.set(style, component.id);
+        subjects.set(componentId, metadataKey);
+        publicStyles.set(component.id, style);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.warn('Пропущена запись каталога ' + (index + 1) + '. ' + message);
