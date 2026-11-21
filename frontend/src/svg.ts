@@ -1,29 +1,9 @@
-const svgNamespace = 'http://www.w3.org/2000/svg';
-const xlinkNamespace = 'http://www.w3.org/1999/xlink';
-const xmlNamespace = 'http://www.w3.org/XML/1998/namespace';
-const xmlnsNamespace = 'http://www.w3.org/2000/xmlns/';
+import {
+  checkSvgMarkup, localUrl, paintAttributes, parseStyle, parseViewport,
+  svgNamespace, VectorDocumentCheck, xmlnsNamespace,
+} from '../../backend/src/common/svg/validation';
+export { maxSvgBytes } from '../../backend/src/common/svg/validation';
 
-const vectorTags = new Set((
-  'svg g defs symbol use path rect circle ellipse line polyline polygon ' +
-  'linearGradient radialGradient stop clipPath mask pattern marker filter ' +
-  'feBlend feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting ' +
-  'feDisplacementMap feDistantLight feDropShadow feFlood feFuncA feFuncB feFuncG feFuncR ' +
-  'feGaussianBlur feMerge feMergeNode feMorphology feOffset fePointLight feSpecularLighting ' +
-  'feSpotLight feTile feTurbulence title desc text tspan textPath'
-).split(' '));
-
-const paintAttributes = ['fill', 'stroke', 'stop-color', 'flood-color', 'lighting-color', 'color'];
-const presentationStyles = new Set([
-  ...paintAttributes, 'opacity', 'fill-opacity', 'fill-rule', 'stroke-opacity', 'stroke-width',
-  'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
-  'stop-opacity', 'flood-opacity', 'clip-rule', 'clip-path', 'mask', 'filter', 'marker-start',
-  'marker-mid', 'marker-end', 'font-family', 'font-size', 'font-style', 'font-weight', 'text-anchor',
-  'dominant-baseline', 'letter-spacing', 'paint-order', 'vector-effect', 'mix-blend-mode',
-  'isolation', 'display', 'visibility',
-]);
-const localUrl = /url\(\s*["']?#([^\s)"']+)["']?\s*\)/gi;
-const supportedNamespaces = new Set([null, xlinkNamespace, xmlNamespace, xmlnsNamespace]);
-export const maxSvgBytes = 1024 * 1024;
 export type Detail = 'detailed' | 'simple';
 export type Role = 'main' | 'background';
 
@@ -59,40 +39,8 @@ export interface Layer {
   scale: number;
 }
 
-function parseStyle(style: string) {
-  return style.split(';').filter((value) => value.trim()).map((declaration) => {
-    const separator = declaration.indexOf(':');
-    const property = declaration.slice(0, separator).trim().toLowerCase();
-    const value = declaration.slice(separator + 1).trim();
-    if (separator < 1 || !value || !presentationStyles.has(property)) {
-      throw new Error('В SVG найдено неподдерживаемое CSS-свойство.');
-    }
-    return [property, value] as const;
-  });
-}
-
-function parseViewport(root: Element) {
-  const parseLength = (value: string | null) =>
-    /^\d*\.?\d+(?:px)?$/i.test(value?.trim() ?? '') ? Number.parseFloat(value!) : 0;
-  const width = parseLength(root.getAttribute('width'));
-  const height = parseLength(root.getAttribute('height'));
-  const viewBox = root.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(Number);
-  if (viewBox && (viewBox.length !== 4 || viewBox.some((value) => !Number.isFinite(value)) ||
-      viewBox[2] <= 0 || viewBox[3] <= 0)) {
-    throw new Error('У SVG некорректный viewBox.');
-  }
-  if (width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height)) {
-    return { width, height, viewBox: viewBox ?? [0, 0, width, height] };
-  }
-  if (viewBox) return { width: viewBox[2], height: viewBox[3], viewBox };
-  throw new Error('У SVG должен быть viewBox или числовые ширина и высота.');
-}
-
 export function parseSvg(entry: CatalogEntry, markup: string): SvgAsset {
-  if (new Blob([markup]).size > maxSvgBytes) throw new Error('Максимальный размер SVG — 1 МБ.');
-  if (/<!DOCTYPE|<\?(?!xml\s)/i.test(markup)) {
-    throw new Error('SVG содержит нестандартные XML-инструкции.');
-  }
+  checkSvgMarkup(markup);
   const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
   const root = doc.documentElement as unknown as SVGSVGElement;
   if (root.localName !== 'svg' || root.namespaceURI !== svgNamespace ||
@@ -100,45 +48,13 @@ export function parseSvg(entry: CatalogEntry, markup: string): SvgAsset {
     throw new Error('Не удалось прочитать SVG. Проверьте XML и пространство имён SVG.');
   }
   const elements = [root, ...Array.from(root.querySelectorAll('*'))];
-  const ids = new Set<string>();
-  const references = new Set<string>();
+  const check = new VectorDocumentCheck();
   const colors = new Set<string>();
-
   for (const element of elements) {
-    if (element.namespaceURI !== svgNamespace || !vectorTags.has(element.localName)) {
-      throw new Error('SVG содержит неподдерживаемый элемент <' + element.localName + '>.');
-    }
-    const id = element.getAttribute('id');
-    if (id) {
-      if (ids.has(id)) throw new Error('В SVG повторяется идентификатор ' + id + '.');
-      ids.add(id);
-    }
-    for (const attribute of Array.from(element.attributes)) {
-      const { localName, value, namespaceURI } = attribute;
-      if (!supportedNamespaces.has(namespaceURI) || /^on/i.test(localName) ||
-          (namespaceURI === xmlNamespace && localName === 'base') || localName === 'src') {
-        throw new Error('SVG содержит неподдерживаемый атрибут ' + attribute.name + '.');
-      }
-      if (namespaceURI === xmlnsNamespace) continue;
-      if (localName === 'href') {
-        if (!/^#[^\s]+$/.test(value)) throw new Error('SVG может ссылаться только на свои элементы.');
-        references.add(value.slice(1));
-      }
-      if (localName === 'style') parseStyle(value);
-      if (localName === 'id' || localName === 'd') continue;
-      const withoutLocalUrls = value.replace(localUrl, (_, target: string) => {
-        references.add(target);
-        return '';
-      });
-      if (/url\s*\(|\\|\/\*/i.test(withoutLocalUrls)) {
-        throw new Error('SVG может использовать только локальные графические ресурсы.');
-      }
-    }
+    check.element(element.namespaceURI, element.localName, element.getAttribute('id'), element.attributes);
     element.removeAttribute('class');
   }
-  for (const id of references) {
-    if (!ids.has(id)) throw new Error('В файле отсутствует определение #' + id + '.');
-  }
+  check.finish();
 
   // Make the SVG initial paints explicit so the palette can recolor inherited shapes too.
   const rootStyle = new Map(parseStyle(root.getAttribute('style') ?? ''));
@@ -160,7 +76,7 @@ export function parseSvg(entry: CatalogEntry, markup: string): SvgAsset {
       if (paintAttributes.includes(property)) collectPaint(colors, value);
     }
   }
-  const { width, height, viewBox } = parseViewport(root);
+  const { width, height, viewBox } = parseViewport((name) => root.getAttribute(name));
   root.setAttribute('x', '0');
   root.setAttribute('y', '0');
   root.setAttribute('width', String(width));

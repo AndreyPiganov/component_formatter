@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { validateCatalogSvg } from './validate-catalog-svg';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { readCatalogComponent } from '../../../common/domain/catalog-component';
@@ -55,6 +56,7 @@ export class FileCatalogSource {
           throw new Error('нужен SVG-файл размером до 1 МБ');
         }
         const svg = await readFile(target, 'utf8');
+        validateCatalogSvg(svg);
         catalog.entries.push({ ...component, source: source.trim().slice(0, 120), detail, svg });
         keys.add(key);
       } catch (error) {
