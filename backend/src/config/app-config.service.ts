@@ -20,6 +20,6 @@ export class AppConfigService {
   }
 
   get openAiModel() {
-    return process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini';
+    return process.env.OPENAI_MODEL?.trim() || 'gpt-5.4';
   }
 }

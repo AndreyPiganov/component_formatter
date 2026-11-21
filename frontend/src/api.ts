@@ -30,7 +30,7 @@ export async function selectObjects(mode: CompositionMode, text: string, detail:
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode, text, detail }),
-    signal: AbortSignal.timeout(16_000),
+    signal: AbortSignal.timeout(45_000),
   });
   if (!response.ok) throw new Error('Не удалось собрать композицию. Проверьте запрос и повторите.');
   return await response.json() as Selection;

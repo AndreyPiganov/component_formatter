@@ -50,6 +50,14 @@ test('constrains model output to the catalog and falls back when an unknown ID i
   const body = { ids: ['book-main'] };
   context.mock.method(globalThis, 'fetch', async (_url, request) => {
     const input = JSON.parse(request.body);
+    if (input.tool_choice.type === 'function') {
+      assert.equal(input.tools[0].name, 'list_catalog');
+      return Response.json({ output: [{ type: 'function_call', name: 'list_catalog', arguments: '{}', call_id: 'call-1' }] });
+    }
+    const result = input.input.at(-1);
+    assert.equal(result.type, 'function_call_output');
+    assert.equal(result.call_id, 'call-1');
+    assert.deepEqual(JSON.parse(result.output), candidates);
     assert.deepEqual(input.text.format.schema.properties.ids.items.enum, candidates.map(({ id }) => id));
     assert.equal(input.store, false);
     return new Response(JSON.stringify({
