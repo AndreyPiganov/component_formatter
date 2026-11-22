@@ -1,0 +1,670 @@
+[
+  {
+    "id": "book-main",
+    "name": "Раскрытая книга",
+    "source": "Набор Figma",
+    "tags": [
+      "книга",
+      "чтение",
+      "учёба",
+      "знания",
+      "история",
+      "book"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/book.svg"
+  },
+  {
+    "id": "phone-main",
+    "name": "Смартфон",
+    "source": "Набор Figma",
+    "tags": [
+      "телефон",
+      "смартфон",
+      "приложение",
+      "экран",
+      "связь",
+      "phone"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/phone.svg"
+  },
+  {
+    "id": "puzzle-main",
+    "name": "Пазл",
+    "source": "Набор Figma",
+    "tags": [
+      "пазл",
+      "головоломка",
+      "задача",
+      "сборка",
+      "игра",
+      "решение",
+      "puzzle"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/puzzle.svg"
+  },
+  {
+    "id": "coin-main",
+    "name": "Монета",
+    "source": "Набор Figma",
+    "tags": [
+      "монета",
+      "деньги",
+      "бюджет",
+      "финансы",
+      "стоимость",
+      "coin",
+      "замок",
+      "защита",
+      "безопасность",
+      "жетон"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/coin.svg"
+  },
+  {
+    "id": "headphones-main",
+    "name": "Наушники",
+    "source": "Набор Figma",
+    "tags": [
+      "наушники",
+      "звук",
+      "музыка",
+      "подкаст",
+      "аудио",
+      "headphones"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/headphones.svg"
+  },
+  {
+    "id": "lamp-main",
+    "name": "Настольная лампа",
+    "source": "Набор Figma",
+    "tags": [
+      "лампа",
+      "свет",
+      "идея",
+      "вдохновение",
+      "работа",
+      "lamp"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/lamp.svg"
+  },
+  {
+    "id": "flowers-main",
+    "name": "Цветы в вазе",
+    "source": "Набор Figma",
+    "tags": [
+      "ваза",
+      "цветы",
+      "тюльпаны",
+      "букет",
+      "весна",
+      "рост",
+      "flowers"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/flowers.svg"
+  },
+  {
+    "id": "wallet-main",
+    "name": "Кошелёк",
+    "source": "Набор Figma",
+    "tags": [
+      "кошелек",
+      "деньги",
+      "покупки",
+      "финансы",
+      "бюджет",
+      "wallet"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/wallet.svg"
+  },
+  {
+    "id": "folder-main",
+    "name": "Папка с документами",
+    "source": "Набор Figma",
+    "tags": [
+      "папка",
+      "документ",
+      "файлы",
+      "архив",
+      "бумага",
+      "folder"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/folder.svg"
+  },
+  {
+    "id": "pencil-main",
+    "name": "Ручка",
+    "source": "Набор Figma",
+    "tags": [
+      "карандаш",
+      "ручка",
+      "письмо",
+      "рисование",
+      "заметки",
+      "pencil",
+      "pen"
+    ],
+    "role": "main",
+    "detail": "detailed",
+    "file": "library/detailed/main/pencil.svg"
+  },
+  {
+    "id": "book-background",
+    "name": "Раскрытая книга",
+    "source": "Набор Figma",
+    "tags": [
+      "книга",
+      "чтение",
+      "учёба",
+      "знания",
+      "история",
+      "book"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/book.svg"
+  },
+  {
+    "id": "phone-background",
+    "name": "Смартфон",
+    "source": "Набор Figma",
+    "tags": [
+      "телефон",
+      "смартфон",
+      "приложение",
+      "экран",
+      "связь",
+      "phone"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/phone.svg"
+  },
+  {
+    "id": "puzzle-background",
+    "name": "Пазл",
+    "source": "Набор Figma",
+    "tags": [
+      "пазл",
+      "головоломка",
+      "задача",
+      "сборка",
+      "игра",
+      "решение",
+      "puzzle"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/puzzle.svg"
+  },
+  {
+    "id": "coin-background",
+    "name": "Монета",
+    "source": "Набор Figma",
+    "tags": [
+      "монета",
+      "деньги",
+      "бюджет",
+      "финансы",
+      "стоимость",
+      "coin",
+      "замок",
+      "защита",
+      "безопасность",
+      "жетон"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/coin.svg"
+  },
+  {
+    "id": "headphones-background",
+    "name": "Наушники",
+    "source": "Набор Figma",
+    "tags": [
+      "наушники",
+      "звук",
+      "музыка",
+      "подкаст",
+      "аудио",
+      "headphones"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/headphones.svg"
+  },
+  {
+    "id": "lamp-background",
+    "name": "Настольная лампа",
+    "source": "Набор Figma",
+    "tags": [
+      "лампа",
+      "свет",
+      "идея",
+      "вдохновение",
+      "работа",
+      "lamp"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/lamp.svg"
+  },
+  {
+    "id": "flowers-background",
+    "name": "Цветы в вазе",
+    "source": "Набор Figma",
+    "tags": [
+      "ваза",
+      "цветы",
+      "тюльпаны",
+      "букет",
+      "весна",
+      "рост",
+      "flowers"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/flowers.svg"
+  },
+  {
+    "id": "wallet-background",
+    "name": "Кошелёк",
+    "source": "Набор Figma",
+    "tags": [
+      "кошелек",
+      "деньги",
+      "покупки",
+      "финансы",
+      "бюджет",
+      "wallet"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/wallet.svg"
+  },
+  {
+    "id": "folder-background",
+    "name": "Папка с документами",
+    "source": "Набор Figma",
+    "tags": [
+      "папка",
+      "документ",
+      "файлы",
+      "архив",
+      "бумага",
+      "folder"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/folder.svg"
+  },
+  {
+    "id": "pencil-background",
+    "name": "Ручка",
+    "source": "Набор Figma",
+    "tags": [
+      "карандаш",
+      "ручка",
+      "письмо",
+      "рисование",
+      "заметки",
+      "pencil",
+      "pen"
+    ],
+    "role": "background",
+    "detail": "detailed",
+    "file": "library/detailed/background/pencil.svg"
+  },
+  {
+    "id": "book-main",
+    "name": "Раскрытая книга",
+    "source": "Набор Figma",
+    "tags": [
+      "книга",
+      "чтение",
+      "учёба",
+      "знания",
+      "история",
+      "book"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/book.svg"
+  },
+  {
+    "id": "phone-main",
+    "name": "Смартфон",
+    "source": "Набор Figma",
+    "tags": [
+      "телефон",
+      "смартфон",
+      "приложение",
+      "экран",
+      "связь",
+      "phone"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/phone.svg"
+  },
+  {
+    "id": "puzzle-main",
+    "name": "Пазл",
+    "source": "Набор Figma",
+    "tags": [
+      "пазл",
+      "головоломка",
+      "задача",
+      "сборка",
+      "игра",
+      "решение",
+      "puzzle"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/puzzle.svg"
+  },
+  {
+    "id": "coin-main",
+    "name": "Монета",
+    "source": "Набор Figma",
+    "tags": [
+      "монета",
+      "деньги",
+      "бюджет",
+      "финансы",
+      "стоимость",
+      "coin",
+      "замок",
+      "защита",
+      "безопасность",
+      "жетон"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/coin.svg"
+  },
+  {
+    "id": "headphones-main",
+    "name": "Наушники",
+    "source": "Набор Figma",
+    "tags": [
+      "наушники",
+      "звук",
+      "музыка",
+      "подкаст",
+      "аудио",
+      "headphones"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/headphones.svg"
+  },
+  {
+    "id": "lamp-main",
+    "name": "Настольная лампа",
+    "source": "Набор Figma",
+    "tags": [
+      "лампа",
+      "свет",
+      "идея",
+      "вдохновение",
+      "работа",
+      "lamp"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/lamp.svg"
+  },
+  {
+    "id": "flowers-main",
+    "name": "Цветы в вазе",
+    "source": "Набор Figma",
+    "tags": [
+      "ваза",
+      "цветы",
+      "тюльпаны",
+      "букет",
+      "весна",
+      "рост",
+      "flowers"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/flowers.svg"
+  },
+  {
+    "id": "wallet-main",
+    "name": "Кошелёк",
+    "source": "Набор Figma",
+    "tags": [
+      "кошелек",
+      "деньги",
+      "покупки",
+      "финансы",
+      "бюджет",
+      "wallet"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/wallet.svg"
+  },
+  {
+    "id": "folder-main",
+    "name": "Папка с документами",
+    "source": "Набор Figma",
+    "tags": [
+      "папка",
+      "документ",
+      "файлы",
+      "архив",
+      "бумага",
+      "folder"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/folder.svg"
+  },
+  {
+    "id": "pencil-main",
+    "name": "Ручка",
+    "source": "Набор Figma",
+    "tags": [
+      "карандаш",
+      "ручка",
+      "письмо",
+      "рисование",
+      "заметки",
+      "pencil",
+      "pen"
+    ],
+    "role": "main",
+    "detail": "simple",
+    "file": "library/simple/main/pencil.svg"
+  },
+  {
+    "id": "book-background",
+    "name": "Раскрытая книга",
+    "source": "Набор Figma",
+    "tags": [
+      "книга",
+      "чтение",
+      "учёба",
+      "знания",
+      "история",
+      "book"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/book.svg"
+  },
+  {
+    "id": "phone-background",
+    "name": "Смартфон",
+    "source": "Набор Figma",
+    "tags": [
+      "телефон",
+      "смартфон",
+      "приложение",
+      "экран",
+      "связь",
+      "phone"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/phone.svg"
+  },
+  {
+    "id": "puzzle-background",
+    "name": "Пазл",
+    "source": "Набор Figma",
+    "tags": [
+      "пазл",
+      "головоломка",
+      "задача",
+      "сборка",
+      "игра",
+      "решение",
+      "puzzle"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/puzzle.svg"
+  },
+  {
+    "id": "coin-background",
+    "name": "Монета",
+    "source": "Набор Figma",
+    "tags": [
+      "монета",
+      "деньги",
+      "бюджет",
+      "финансы",
+      "стоимость",
+      "coin",
+      "замок",
+      "защита",
+      "безопасность",
+      "жетон"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/coin.svg"
+  },
+  {
+    "id": "headphones-background",
+    "name": "Наушники",
+    "source": "Набор Figma",
+    "tags": [
+      "наушники",
+      "звук",
+      "музыка",
+      "подкаст",
+      "аудио",
+      "headphones"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/headphones.svg"
+  },
+  {
+    "id": "lamp-background",
+    "name": "Настольная лампа",
+    "source": "Набор Figma",
+    "tags": [
+      "лампа",
+      "свет",
+      "идея",
+      "вдохновение",
+      "работа",
+      "lamp"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/lamp.svg"
+  },
+  {
+    "id": "flowers-background",
+    "name": "Цветы в вазе",
+    "source": "Набор Figma",
+    "tags": [
+      "ваза",
+      "цветы",
+      "тюльпаны",
+      "букет",
+      "весна",
+      "рост",
+      "flowers"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/flowers.svg"
+  },
+  {
+    "id": "wallet-background",
+    "name": "Кошелёк",
+    "source": "Набор Figma",
+    "tags": [
+      "кошелек",
+      "деньги",
+      "покупки",
+      "финансы",
+      "бюджет",
+      "wallet"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/wallet.svg"
+  },
+  {
+    "id": "folder-background",
+    "name": "Папка с документами",
+    "source": "Набор Figma",
+    "tags": [
+      "папка",
+      "документ",
+      "файлы",
+      "архив",
+      "бумага",
+      "folder"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/folder.svg"
+  },
+  {
+    "id": "pencil-background",
+    "name": "Ручка",
+    "source": "Набор Figma",
+    "tags": [
+      "карандаш",
+      "ручка",
+      "письмо",
+      "рисование",
+      "заметки",
+      "pencil",
+      "pen"
+    ],
+    "role": "background",
+    "detail": "simple",
+    "file": "library/simple/background/pencil.svg"
+  }
+]
