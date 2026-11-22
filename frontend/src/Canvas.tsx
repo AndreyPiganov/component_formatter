@@ -8,9 +8,9 @@ interface CanvasProps {
   layers: Layer[];
   assets: ReadonlyMap<string, SvgAsset>;
   palettes: ReadonlyMap<string, ReadonlyMap<string, string>>;
-  selectedId: string | null;
-  select: (id: string | null) => void;
-  move: (id: string, x: number, y: number) => void;
+  selectedIds: string[];
+  select: (ids: string[]) => void;
+  move: (ids: string[], anchor: string, x: number, y: number) => void;
   rotate: (id: string, angle: number) => void;
   resize: (id: string, scale: number, pivot: Point) => void;
   remove: (id: string) => void;
@@ -18,7 +18,7 @@ interface CanvasProps {
 
 interface Point { x: number; y: number }
 type Gesture = { id: string; pointerId: number } & (
-  | { kind: 'move'; offset: Point }
+  | { kind: 'move'; ids: string[]; offset: Point }
   | { kind: 'rotate'; center: Point; initialAngle: number; startDirection: number | null }
   | { kind: 'resize'; pivot: Point; diagonal: Point; initialScale: number }
 );
@@ -31,10 +31,13 @@ const VectorObject = memo(function VectorObject({ asset, id, palette, colorSlots
   return <g aria-hidden="true" pointerEvents="none" dangerouslySetInnerHTML={{ __html: markup }} />;
 });
 
-export function Canvas({ artboard, layers, assets, palettes, selectedId, select, move, rotate, resize, remove }: CanvasProps) {
+export function Canvas({ artboard, layers, assets, palettes, selectedIds, select, move, rotate, resize, remove }: CanvasProps) {
   const canvas = useRef<SVGSVGElement>(null);
   const drag = useRef<Gesture | null>(null);
-  const selected = layers.find((layer) => layer.id === selectedId);
+  const boxStart = useRef<{ pointerId: number; point: Point } | null>(null);
+  const [box, setBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  const selected = layers.find((layer) => selectedIds.length === 1 && layer.id === selectedIds[0]);
   const asset = selected && assets.get(selected.assetId);
   const halfWidth = selected && asset ? selected.scale * asset.width / 2 : 0;
   const halfHeight = selected && asset ? selected.scale * asset.height / 2 : 0;
@@ -58,13 +61,18 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
   }
 
   function start(event: PointerEvent<SVGElement>, layer: Layer, kind: Gesture['kind']) {
-    if (event.button !== 0 || drag.current) return;
+    if (event.button !== 0 || drag.current || boxStart.current) return;
     const point = pointerPosition(event);
     if (!point || !canvas.current) return;
     event.stopPropagation();
     event.preventDefault();
     canvas.current.focus({ preventScroll: true });
+    if (event.shiftKey && kind === 'move') {
+      select(selectedIds.includes(layer.id) ? selectedIds.filter((id) => id !== layer.id) : [...selectedIds, layer.id]);
+      return;
+    }
     canvas.current.setPointerCapture(event.pointerId);
+    const ids = kind === 'move' && selectedIds.includes(layer.id) ? selectedIds : [layer.id];
     const pointer = { id: layer.id, pointerId: event.pointerId };
     const offset = { x: point.x - layer.x, y: point.y - layer.y };
     if (kind === 'rotate') {
@@ -80,18 +88,39 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
       drag.current = { ...pointer, kind, pivot, initialScale: layer.scale,
         diagonal: { x: point.x - pivot.x, y: point.y - pivot.y } };
     } else {
-      drag.current = { ...pointer, kind, offset };
+      drag.current = { ...pointer, kind, ids, offset };
     }
-    select(layer.id);
+    select(ids);
+  }
+
+  function beginBox(event: PointerEvent<SVGSVGElement>) {
+    const point = pointerPosition(event);
+    if (event.button !== 0 || drag.current || boxStart.current || !point) return;
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    boxStart.current = { pointerId: event.pointerId, point };
+    select([]);
+  }
+
+  function boxAt(event: PointerEvent<SVGSVGElement>) {
+    const origin = boxStart.current;
+    const point = pointerPosition(event);
+    if (!origin || origin.pointerId !== event.pointerId || !point) return null;
+    return { x: Math.min(origin.point.x, point.x), y: Math.min(origin.point.y, point.y),
+      width: Math.abs(point.x - origin.point.x), height: Math.abs(point.y - origin.point.y) };
   }
 
   function update(event: PointerEvent<SVGSVGElement>) {
+    if (boxStart.current?.pointerId === event.pointerId) {
+      setBox(boxAt(event));
+      return;
+    }
     const active = drag.current;
     if (!active || active.pointerId !== event.pointerId) return;
     const point = pointerPosition(event);
     if (!point) return;
     if (active.kind === 'move') {
-      move(active.id, Math.round(point.x - active.offset.x), Math.round(point.y - active.offset.y));
+      move(active.ids, active.id, Math.round(point.x - active.offset.x), Math.round(point.y - active.offset.y));
     } else if (active.kind === 'rotate') {
       const dx = point.x - active.center.x, dy = point.y - active.center.y;
       if (Math.hypot(dx, dy) < pixel) return;
@@ -109,15 +138,34 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
   }
 
   function stop(event: PointerEvent<SVGSVGElement>) {
+    if (boxStart.current?.pointerId === event.pointerId) {
+      const rect = boxAt(event);
+      if (event.type === 'pointerup' && rect && rect.width > 0 && rect.height > 0) {
+        const enclosed = layers.filter((layer) => {
+          const asset = assets.get(layer.assetId);
+          if (!asset) return false;
+          const theta = layer.rotation * Math.PI / 180;
+          const c = Math.abs(Math.cos(theta)), s = Math.abs(Math.sin(theta));
+          const w = layer.scale * (asset.width * c + asset.height * s) / 2;
+          const h = layer.scale * (asset.width * s + asset.height * c) / 2;
+          return layer.x - w >= rect.x && layer.x + w <= rect.x + rect.width &&
+            layer.y - h >= rect.y && layer.y + h <= rect.y + rect.height;
+        });
+        select(enclosed.map((layer) => layer.id));
+      }
+      boxStart.current = null;
+      setBox(null);
+    }
     if (drag.current?.pointerId === event.pointerId) drag.current = null;
   }
 
   function onKey(event: KeyboardEvent<SVGSVGElement>) {
-    const layer = layers.find(({ id }) => id === selectedId);
+    if (event.key === 'Escape') { select([]); return; }
+    const layer = layers.find(({ id }) => id === selectedIds[0]);
     if (!layer) return;
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
-      remove(layer.id);
+      if (selectedIds.length === 1) remove(layer.id);
       return;
     }
     const arrows: Record<string, [number, number]> = {
@@ -127,14 +175,14 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
     if (direction) {
       event.preventDefault();
       const step = event.shiftKey ? 10 : 1;
-      move(layer.id, layer.x + direction[0] * step, layer.y + direction[1] * step);
+      move(selectedIds, layer.id, layer.x + direction[0] * step, layer.y + direction[1] * step);
     }
   }
 
   return <CanvasViewport artboard={artboard}>
     <svg className="scene" ref={canvas} viewBox={'0 0 ' + artboard.width + ' ' + artboard.height}
       tabIndex={0} aria-label="Интерактивный холст"
-      onPointerDown={() => { if (!drag.current) select(null); }} onPointerMove={update} onPointerUp={stop}
+      onPointerDown={beginBox} onPointerMove={update} onPointerUp={stop}
       onPointerCancel={stop} onLostPointerCapture={stop} onKeyDown={onKey}>
       {layers.map((layer) => {
         const asset = assets.get(layer.assetId);
@@ -142,7 +190,7 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
         return <g key={layer.id} data-layer={layer.id} transform={layerTransform(layer)}
           onPointerDown={(event) => start(event, layer, event.ctrlKey || event.metaKey ? 'rotate' : 'move')}>
           <VectorObject asset={asset} id={layer.id} colorSlots={layer.colorSlots} palette={palettes.get(asset.id) ?? emptyPalette} />
-          <rect className={layer.id === selectedId ? 'layer-hit selected' : 'layer-hit'}
+          <rect className={selectedIds.includes(layer.id) ? 'layer-hit selected' : 'layer-hit'}
             x={-asset.width / 2} y={-asset.height / 2} width={asset.width} height={asset.height}
             fill="transparent" vectorEffect="non-scaling-stroke" />
         </g>;
@@ -164,6 +212,7 @@ export function Canvas({ artboard, layers, assets, palettes, selectedId, select,
             className="handle-mark" vectorEffect="non-scaling-stroke" />
         </g>
       </g>}
+      {box && <rect {...box} fill="#683ae41a" stroke="#683ae4" vectorEffect="non-scaling-stroke" pointerEvents="none" />}
     </svg>
     {layers.length === 0 && <div className="canvas-empty">
       <Layers size={32} strokeWidth={1.6} />

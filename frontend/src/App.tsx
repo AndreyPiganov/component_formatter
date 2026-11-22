@@ -41,7 +41,11 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
     revision.current++;
     updateLayers(update);
   }
-  const [selectedId, setSelectedId] = useState<string | null>(draft?.selectedId ?? null);
+  const [selectedIds, setSelectedIds] = useState<string[]>(draft?.selectedIds ?? (draft?.selectedId ? [draft.selectedId] : []));
+  const selectedId = selectedIds.length === 1 ? selectedIds[0] : null;
+  function selectOne(id: string | null) {
+    setSelectedIds(id ? [id] : []);
+  }
   const [formatIndex, setFormatIndex] = useState(draft?.formatIndex ?? 0);
   const [paletteList, setPaletteList] = useState<Scheme[]>(draft?.paletteList ?? schemes);
   const [schemeIndex, setSchemeIndex] = useState(draft?.schemeIndex ?? 0);
@@ -56,9 +60,9 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
 
   const [saveError, setSaveError] = useState(storageError);
   const snapshot = useMemo<Draft>(() => ({
-    layers, personalIds: imported.map((asset) => asset.id), selectedId, formatIndex, paletteList,
+    layers, personalIds: imported.map((asset) => asset.id), selectedId, selectedIds, formatIndex, paletteList,
     schemeIndex, background, query, mode, prompt, proposal,
-  }), [layers, imported, selectedId, formatIndex, paletteList, schemeIndex, background, query, mode, prompt, proposal]);
+  }), [layers, imported, selectedId, selectedIds, formatIndex, paletteList, schemeIndex, background, query, mode, prompt, proposal]);
   const previous = useRef(snapshot);
   useEffect(() => {
     if (!store || previous.current === snapshot) return;
@@ -158,7 +162,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
       artboard.height / 2 + (layers.length % 5) * 20,
       layers[0]?.scale ?? initialScale(personalIds.has(asset.id) ? [asset] : sourceAssets, artboard));
     setLayers((current) => [...current, layer]);
-    setSelectedId(layer.id);
+    selectOne(layer.id);
     setStatus('');
   }
 
@@ -175,13 +179,13 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
 
   function deleteLayer(id: string) {
     setLayers((current) => current.filter((layer) => layer.id !== id));
-    setSelectedId((current) => current === id ? null : current);
+    setSelectedIds((current) => current.filter((selected) => selected !== id));
   }
 
   function duplicateLayer(layer: Layer) {
     const duplicate = { ...layer, id: newId(), x: layer.x + 24, y: layer.y + 24 };
     setLayers((current) => [...current, duplicate]);
-    setSelectedId(duplicate.id);
+    selectOne(duplicate.id);
   }
 
   function reorderLayer(id: string, direction: -1 | 1) {
@@ -230,7 +234,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
       const message = 'Добавлено объектов: ' + chosen.length + '.' + method + unmatched;
       if (revision.current === startedAt) {
         setLayers(scene);
-        setSelectedId(null);
+        selectOne(null);
         setStatus(message);
       } else {
         setProposal({ layers: scene, message });
@@ -322,8 +326,13 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
               { x: artboard.width / 2, y: artboard.height / 2 })} />}
         </div>
         <Canvas artboard={artboard} layers={layers} assets={sceneAssets} palettes={palettes}
-          selectedId={selectedId} select={setSelectedId}
-          move={(id, x, y) => patchLayer(id, { x, y })} rotate={(id, rotation) => patchLayer(id, { rotation })}
+          selectedIds={selectedIds} select={setSelectedIds}
+          move={(ids, anchor, x, y) => setLayers((current) => {
+            const origin = current.find((layer) => layer.id === anchor);
+            if (!origin) return current;
+            const dx = x - origin.x, dy = y - origin.y;
+            return current.map((layer) => ids.includes(layer.id) ? { ...layer, x: layer.x + dx, y: layer.y + dy } : layer);
+          })} rotate={(id, rotation) => patchLayer(id, { rotation })}
           resize={resizeScene} remove={deleteLayer} />
         {missingArtwork && <p className="status">Ожидаем исходники слоёв из библиотеки. Экспорт станет доступен, когда все объекты загружены.</p>}
         {saveError && <p className="status" role="alert">{saveError}</p>}
@@ -334,7 +343,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
           Вы изменили сцену во время подбора. Заменить её собранной композицией?
           {' '}<button className="button secondary" onClick={() => {
             setLayers(proposal.layers);
-            setSelectedId(null);
+            selectOne(null);
             setStatus(proposal.message);
             setProposal(null);
           }}>Заменить сцену</button>
@@ -370,9 +379,10 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
         <section className="inspector-section">
           <div className="panel-title"><h2><Layers size={17} /> Слои</h2></div>
           {layers.length === 0 && <p className="muted">Слои появятся здесь после добавления объектов.</p>}
+          {selectedIds.length > 1 && <p className="muted">Выбрано объектов: {selectedIds.length}</p>}
           <ul className="layers">
             {[...layers].reverse().map((layer) => <li key={layer.id}>
-              <button aria-pressed={layer.id === selectedId} onClick={() => setSelectedId(layer.id)}>
+              <button aria-pressed={selectedIds.includes(layer.id)} onClick={() => selectOne(layer.id)}>
                 {sceneAssets.get(layer.assetId)?.name ?? layer.assetId}
                 {sceneAssets.get(layer.assetId)?.role === 'background' && <small>Фон</small>}
               </button>

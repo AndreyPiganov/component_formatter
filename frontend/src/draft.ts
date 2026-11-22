@@ -9,6 +9,7 @@ export interface Draft {
   layers: Layer[];
   personalIds: string[];
   selectedId: string | null;
+  selectedIds?: string[];
   formatIndex: number;
   paletteList: Scheme[];
   schemeIndex: number;
