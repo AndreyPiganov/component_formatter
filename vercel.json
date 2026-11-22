@@ -9,6 +9,7 @@
       "root": "backend",
       "framework": "nestjs",
       "entrypoint": "src/main.ts",
+      "outputDirectory": ".",
       "installCommand": "npm ci && npm run prisma:generate"
     }
   },
