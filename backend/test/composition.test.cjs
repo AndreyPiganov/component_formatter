@@ -79,3 +79,18 @@ test('client-supplied names and unknown objects cannot enter the official select
   assert.deepEqual(await local.select(input), { ids: ['book-main'], unmatched: ['логотип'], method: 'names' });
   assert.throws(() => readCompositionRequest({ mode: 'names', text: 'книга', detail: 'invalid' }));
 });
+
+test('builds a workspace scene with an unavailable provider or a single matching AI suggestion', async () => {
+  const library = { listCandidates: async () => [
+    { ...candidates[2], tags: ['работа', 'лампа'] },
+    { id: 'folder', name: 'Папка', tags: ['документ'], role: 'main' },
+    { id: 'pen', name: 'Ручка', tags: ['письмо'], role: 'main' },
+    { id: 'coin', name: 'Монета', tags: ['монета'], role: 'main' },
+  ] };
+  for (const answer of [undefined, ['lamp-main']]) {
+    const service = new CompositionService({ select: async () => answer }, library);
+    const result = await service.select({ mode: 'metaphor', text: 'Мой рабочий стол', detail: 'simple' });
+    assert.deepEqual(new Set(result.ids), new Set(['lamp-main', 'folder', 'pen']));
+    assert.equal(result.method, 'keywords');
+  }
+});

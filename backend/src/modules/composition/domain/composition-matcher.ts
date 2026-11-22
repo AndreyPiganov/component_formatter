@@ -31,8 +31,21 @@ export function selectByNames(text: string, candidates: CatalogComponent[]): Sel
   return { ids, unmatched, method: 'names' };
 }
 
-export function selectByKeywords(text: string, candidates: CatalogComponent[]): Selection {
-  const tokens = [...new Set(words(text).filter((word) => word.length > 2))];
+// These phrases expand into catalog tags, so missing assets are never suggested.
+const sceneTerms = [
+  { phrases: ['рабочий стол', 'рабочее место', 'офисный стол'], tags: ['лампа', 'письмо', 'документ'] },
+  { phrases: ['подготовка к экзамену', 'учебный стол'], tags: ['книга', 'заметки', 'свет'] },
+  { phrases: ['семейный бюджет', 'личные финансы'], tags: ['кошелек', 'монета', 'документ'] },
+];
+
+export function sceneTags(text: string) {
+  const title = ' ' + normalize(text) + ' ';
+  return sceneTerms.filter(({ phrases }) => phrases.some((phrase) => title.includes(' ' + phrase + ' ')))
+    .flatMap(({ tags }) => tags);
+}
+
+export function selectByKeywords(text: string, candidates: CatalogComponent[], tags = sceneTags(text)): Selection {
+  const tokens = [...new Set([...words(text).filter((word) => word.length > 2), ...tags])];
   const ranked = candidates.map((candidate) => {
     const names = words(candidate.name);
     const related = candidate.tags.flatMap(words);
