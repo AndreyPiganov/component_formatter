@@ -9,6 +9,8 @@ import { assetPalette, parseScheme, schemeColors, schemes, type Scheme } from '.
 import { arrangeObjects, assetsForLayers, formats, initialScale, placeAsset, resizeLayers, scaleComposition, visibleAssets } from './scene';
 import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } from './svg';
 
+import type { Draft, DraftStore, PersonalAsset } from './draft';
+
 type Background = number | 'transparent';
 
 function saveFile(svg: string, personal: boolean) {
@@ -20,30 +22,59 @@ function saveFile(svg: string, personal: boolean) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function App() {
+interface AppProps {
+  store?: Pick<DraftStore, 'save'>;
+  draft?: Draft;
+  importedFiles?: PersonalAsset[];
+  storageError?: string;
+}
+
+export default function App({ store, draft, importedFiles, storageError = '' }: AppProps) {
   const [sourceAssets, setSourceAssets] = useState<SvgAsset[]>([]);
-  const [imported, setImported] = useState<SvgAsset[]>([]);
+  const [imported, setImported] = useState<PersonalAsset[]>(importedFiles ?? []);
   const [libraryStatus, setLibraryStatus] = useState('Загрузка библиотеки…');
-  const [layers, updateLayers] = useState<Layer[]>([]);
+  const [layers, updateLayers] = useState<Layer[]>(draft?.layers ?? []);
   const revision = useRef(0);
-  const [proposal, setProposal] = useState<{ layers: Layer[]; message: string } | null>(null);
+  const [proposal, setProposal] = useState<{ layers: Layer[]; message: string } | null>(draft?.proposal ?? null);
 
   function setLayers(update: Layer[] | ((current: Layer[]) => Layer[])) {
     revision.current++;
     updateLayers(update);
   }
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [formatIndex, setFormatIndex] = useState(0);
-  const [paletteList, setPaletteList] = useState<Scheme[]>(schemes);
-  const [schemeIndex, setSchemeIndex] = useState(0);
-  const [background, setBackground] = useState<Background>(0);
-  const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<CompositionMode>('metaphor');
-  const [prompt, setPrompt] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(draft?.selectedId ?? null);
+  const [formatIndex, setFormatIndex] = useState(draft?.formatIndex ?? 0);
+  const [paletteList, setPaletteList] = useState<Scheme[]>(draft?.paletteList ?? schemes);
+  const [schemeIndex, setSchemeIndex] = useState(draft?.schemeIndex ?? 0);
+  const [background, setBackground] = useState<Background>(draft?.background ?? 0);
+  const [query, setQuery] = useState(draft?.query ?? '');
+  const [mode, setMode] = useState<CompositionMode>(draft?.mode ?? 'metaphor');
+  const [prompt, setPrompt] = useState(draft?.prompt ?? '');
   const [building, setBuilding] = useState(false);
   const [status, setStatus] = useState('');
   const libraryUpload = useRef<HTMLInputElement>(null);
   const paletteUpload = useRef<HTMLInputElement>(null);
+
+  const [saveError, setSaveError] = useState(storageError);
+  const snapshot = useMemo<Draft>(() => ({
+    layers, personalIds: imported.map((asset) => asset.id), selectedId, formatIndex, paletteList,
+    schemeIndex, background, query, mode, prompt, proposal,
+  }), [layers, imported, selectedId, formatIndex, paletteList, schemeIndex, background, query, mode, prompt, proposal]);
+  const previous = useRef(snapshot);
+  useEffect(() => {
+    if (!store || previous.current === snapshot) return;
+    previous.current = snapshot;
+    let current = true;
+    async function write() {
+      try {
+        await store!.save(snapshot, imported);
+        if (current) setSaveError('');
+      } catch {
+        if (current) setSaveError('Браузер не сохранил последние изменения. Можно скачать SVG.');
+      }
+    }
+    void write();
+    return () => { current = false; };
+  }, [store, snapshot, imported]);
 
   useEffect(() => {
     const request = new AbortController();
@@ -67,7 +98,8 @@ export default function App() {
   };
   const available = useMemo(() => visibleAssets(assets, format.detail), [assets, format.detail]);
   const sceneAssets = useMemo(() => assetsForLayers(assets, available), [assets, available]);
-  const retained = [...new Set(layers.filter((layer) => !available.has(layer.assetId))
+  const missingArtwork = layers.some((layer) => !sceneAssets.has(layer.assetId));
+  const retained = [...new Set(layers.filter((layer) => sceneAssets.has(layer.assetId) && !available.has(layer.assetId))
     .map((layer) => sceneAssets.get(layer.assetId)?.name))];
   const palettes = useMemo(() => new Map([...sceneAssets].map(([id, asset]) =>
     [id, assetPalette(asset, scheme)])), [sceneAssets, scheme]);
@@ -88,15 +120,16 @@ export default function App() {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (!files.length) return;
-    const loaded: SvgAsset[] = [];
+    const loaded: PersonalAsset[] = [];
     const errors: string[] = [];
     for (const file of files) {
       try {
         if (file.size > maxSvgBytes) throw new Error('Максимальный размер SVG — 1 МБ.');
         const name = file.name.replace(/\.svg$/i, '').replace(/[-_]+/g, ' ').trim().slice(0, 160) || 'Объект';
-        loaded.push(parseSvg({
+        const markup = await file.text();
+        loaded.push({ ...parseSvg({
           id: 'local:' + newId(), name, source: 'Импорт SVG', tags: [], detail: 'any', role: 'main',
-        }, await file.text()));
+        }, markup), markup });
       } catch (error) {
         errors.push(file.name + ' · ' + (error as Error).message);
       }
@@ -216,7 +249,7 @@ export default function App() {
         <span className="brand-mark"><Grid2X2 size={20} strokeWidth={2.2} /></span>
         <h1>Компоновщик</h1>
       </div>
-      <button className="button primary" disabled={!layers.length}
+      <button className="button primary" disabled={!layers.length || missingArtwork}
         onClick={() => saveFile(exportSvg(artboard, layers, sceneAssets, palettes), personalScene)}>
         <Download size={16} /> Скачать SVG
       </button>
@@ -292,6 +325,8 @@ export default function App() {
           selectedId={selectedId} select={setSelectedId}
           move={(id, x, y) => patchLayer(id, { x, y })} rotate={(id, rotation) => patchLayer(id, { rotation })}
           resize={resizeScene} remove={deleteLayer} />
+        {missingArtwork && <p className="status">Ожидаем исходники слоёв из библиотеки. Экспорт станет доступен, когда все объекты загружены.</p>}
+        {saveError && <p className="status" role="alert">{saveError}</p>}
         {personalScene && <p className="status">В композиции есть ваши SVG. Они войдут в экспорт.</p>}
         {retained.length > 0 && <p className="status">Для этого размера нет варианта у объектов
           {' «' + retained.join('», «') + '»'}. На холсте сохранена прежняя детализация.</p>}
