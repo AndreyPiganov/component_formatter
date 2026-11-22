@@ -145,11 +145,15 @@ export function Canvas({ artboard, layers, assets, palettes, selectedIds, select
           const asset = assets.get(layer.assetId);
           if (!asset) return false;
           const theta = layer.rotation * Math.PI / 180;
-          const c = Math.abs(Math.cos(theta)), s = Math.abs(Math.sin(theta));
-          const w = layer.scale * (asset.width * c + asset.height * s) / 2;
-          const h = layer.scale * (asset.width * s + asset.height * c) / 2;
-          return layer.x - w >= rect.x && layer.x + w <= rect.x + rect.width &&
-            layer.y - h >= rect.y && layer.y + h <= rect.y + rect.height;
+          const c = Math.cos(theta), s = Math.sin(theta);
+          const w = layer.scale * asset.width / 2, h = layer.scale * asset.height / 2;
+          const rw = rect.width / 2, rh = rect.height / 2;
+          const dx = layer.x - (rect.x + rw), dy = layer.y - (rect.y + rh);
+          // Two rectangles overlap if their projections touch on all four edge normals.
+          return Math.abs(dx) <= rw + w * Math.abs(c) + h * Math.abs(s) &&
+            Math.abs(dy) <= rh + w * Math.abs(s) + h * Math.abs(c) &&
+            Math.abs(dx * c + dy * s) <= w + rw * Math.abs(c) + rh * Math.abs(s) &&
+            Math.abs(-dx * s + dy * c) <= h + rw * Math.abs(s) + rh * Math.abs(c);
         });
         select(enclosed.map((layer) => layer.id));
       }
