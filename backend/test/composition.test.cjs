@@ -47,7 +47,9 @@ test('constrains model output to the catalog and falls back when an unknown ID i
     if (previous === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previous;
   });
-  const body = { subjects: ['book', 'lamp'], background: ['book'] };
+  const book = { id: 'book', role: 'main', relativeTo: null, dx: 0, dy: 0, rotation: -8 };
+  const lamp = { id: 'lamp', role: 'main', relativeTo: 'book', dx: -.6, dy: -.7, rotation: 5 };
+  const body = { layers: [book, lamp] };
   context.mock.method(globalThis, 'fetch', async (_url, request) => {
     const input = JSON.parse(request.body);
     if (input.tool_choice.type === 'function') {
@@ -60,7 +62,7 @@ test('constrains model output to the catalog and falls back when an unknown ID i
     assert.deepEqual(JSON.parse(result.output).map(({ id, roles }) => ({ id, roles })), [
       { id: 'book', roles: ['main', 'background'] }, { id: 'lamp', roles: ['main'] },
     ]);
-    assert.deepEqual(input.text.format.schema.properties.subjects.items.enum, ['book', 'lamp']);
+    assert.deepEqual(input.text.format.schema.properties.layers.items.properties.id.enum, ['book', 'lamp']);
     assert.equal(input.store, false);
     return new Response(JSON.stringify({
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(body) }] }],
@@ -68,11 +70,18 @@ test('constrains model output to the catalog and falls back when an unknown ID i
   });
   const service = new CompositionService(new OpenAiClient(new AppConfigService()), catalog);
   const input = readCompositionRequest({ mode: 'metaphor', text: 'свет', detail: 'simple' });
-  assert.deepEqual(await service.select(input), { method: 'ai', ids: ['book-main', 'lamp-main'], unmatched: [] });
-  body.subjects = ['lamp'];
-  assert.deepEqual((await service.select(input)).ids, ['lamp-main', 'book-background']);
-  body.background = ['invented'];
-  assert.deepEqual(await service.select(input), { method: 'keywords', ids: ['lamp-main'], unmatched: [] });
+  const first = await service.select(input);
+  assert.equal(first.method, 'ai');
+  assert.deepEqual(first.ids, ['book-main', 'lamp-main']);
+  book.role = 'background';
+  assert.deepEqual((await service.select(input)).placements, [
+    { assetId: 'book-background', relativeTo: null, dx: 0, dy: 0, rotation: -8 },
+    { assetId: 'lamp-main', relativeTo: 'book-background', dx: -.6, dy: -.7, rotation: 5 },
+  ]);
+  for (const invalid of [{ id: 'invented' }, { relativeTo: 'lamp' }, { dx: 2 }, { id: 'book' }]) {
+    body.layers = [book, { ...lamp, ...invalid }];
+    assert.deepEqual(await service.select(input), { method: 'keywords', ids: ['lamp-main'], unmatched: [] });
+  }
 });
 
 test('busy work pairs documents with a writing tool in both catalog sizes without OpenAI', async () => {
@@ -101,7 +110,7 @@ test('builds a workspace scene with an unavailable provider or a single matching
     { id: 'pen', name: 'Ручка', tags: ['письмо'], role: 'main' },
     { id: 'coin', name: 'Монета', tags: ['монета'], role: 'main' },
   ] };
-  for (const answer of [undefined, ['lamp-main']]) {
+  for (const answer of [undefined, [{ assetId: 'lamp-main', relativeTo: null, dx: 0, dy: 0, rotation: 0 }]]) {
     const service = new CompositionService({ select: async () => answer }, library);
     const result = await service.select({ mode: 'metaphor', text: 'Мой рабочий стол', detail: 'simple' });
     assert.deepEqual(new Set(result.ids), new Set(['lamp-main', 'folder', 'pen']));

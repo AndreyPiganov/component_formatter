@@ -1,3 +1,5 @@
+import type { ScenePlacement } from '../../../common/svg/placement';
+
 export interface CompositionRequest {
   mode: 'names' | 'metaphor';
   text: string;
@@ -7,6 +9,7 @@ export interface CompositionRequest {
 
 export interface Selection {
   ids: string[];
+  placements?: ScenePlacement[];
   unmatched: string[];
   method: 'names' | 'keywords' | 'ai';
 }

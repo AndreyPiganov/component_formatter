@@ -13,13 +13,14 @@ export class CompositionService {
     const candidates = await this.library.listCandidates(detail, allowedIds);
     if (mode === 'names') return selectByNames(text, candidates);
     if (!candidates.length) return { ids: [], unmatched: [], method: 'keywords' };
-    const ids = await this.openAi.select(text, candidates);
+    const placements = await this.openAi.select(text, candidates);
+    const ai: Selection | undefined = placements && {
+      ids: placements.map(({ assetId }) => assetId), placements, unmatched: [], method: 'ai',
+    };
     const tags = sceneTags(text);
-    if (ids && (ids.length !== 1 || !tags.length)) return { ids, unmatched: [], method: 'ai' };
+    if (ai && (ai.ids.length !== 1 || !tags.length)) return ai;
     const local = selectByKeywords(text, candidates, tags);
-    if (ids && (local.ids.length < 2 || !local.ids.includes(ids[0]))) {
-      return { ids, unmatched: [], method: 'ai' };
-    }
+    if (ai && (local.ids.length < 2 || !local.ids.includes(ai.ids[0]))) return ai;
     return local;
   }
 }
