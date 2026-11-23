@@ -6,9 +6,9 @@ const { readCompositionRequest } = require('../dist/modules/composition/dto/sele
 const { CompositionService } = require('../dist/modules/composition/services/composition.service');
 
 const candidates = [
-  { id: 'book-main', name: 'Раскрытая книга', role: 'main', tags: ['книга', 'учёба', 'знания'] },
-  { id: 'book-background', name: 'Раскрытая книга', role: 'background', tags: ['книга', 'учёба'] },
-  { id: 'lamp-main', name: 'Настольная лампа', role: 'main', tags: ['лампа', 'идея', 'свет'] },
+  { id: 'book-main', componentId: 'book', name: 'Раскрытая книга', role: 'main', tags: ['книга', 'учёба', 'знания'] },
+  { id: 'book-background', componentId: 'book', name: 'Раскрытая книга', role: 'background', tags: ['книга', 'учёба', 'знания'] },
+  { id: 'lamp-main', componentId: 'lamp', name: 'Настольная лампа', role: 'main', tags: ['лампа', 'идея', 'свет'] },
 ];
 const catalog = { listCandidates: async (_detail, ids) => candidates.filter((item) => !ids || ids.includes(item.id)) };
 const local = new CompositionService({ select: async () => undefined }, catalog);
@@ -47,7 +47,7 @@ test('constrains model output to the catalog and falls back when an unknown ID i
     if (previous === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previous;
   });
-  const body = { ids: ['book-main'] };
+  const body = { subjects: ['book', 'lamp'], background: ['book'] };
   context.mock.method(globalThis, 'fetch', async (_url, request) => {
     const input = JSON.parse(request.body);
     if (input.tool_choice.type === 'function') {
@@ -57,8 +57,10 @@ test('constrains model output to the catalog and falls back when an unknown ID i
     const result = input.input.at(-1);
     assert.equal(result.type, 'function_call_output');
     assert.equal(result.call_id, 'call-1');
-    assert.deepEqual(JSON.parse(result.output), candidates);
-    assert.deepEqual(input.text.format.schema.properties.ids.items.enum, candidates.map(({ id }) => id));
+    assert.deepEqual(JSON.parse(result.output).map(({ id, roles }) => ({ id, roles })), [
+      { id: 'book', roles: ['main', 'background'] }, { id: 'lamp', roles: ['main'] },
+    ]);
+    assert.deepEqual(input.text.format.schema.properties.subjects.items.enum, ['book', 'lamp']);
     assert.equal(input.store, false);
     return new Response(JSON.stringify({
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(body) }] }],
@@ -66,9 +68,21 @@ test('constrains model output to the catalog and falls back when an unknown ID i
   });
   const service = new CompositionService(new OpenAiClient(new AppConfigService()), catalog);
   const input = readCompositionRequest({ mode: 'metaphor', text: 'свет', detail: 'simple' });
-  assert.deepEqual(await service.select(input), { method: 'ai', ids: ['book-main'], unmatched: [] });
-  body.ids = ['invented'];
+  assert.deepEqual(await service.select(input), { method: 'ai', ids: ['book-main', 'lamp-main'], unmatched: [] });
+  body.subjects = ['lamp'];
+  assert.deepEqual((await service.select(input)).ids, ['lamp-main', 'book-background']);
+  body.background = ['invented'];
   assert.deepEqual(await service.select(input), { method: 'keywords', ids: ['lamp-main'], unmatched: [] });
+});
+
+test('busy work pairs documents with a writing tool in both catalog sizes without OpenAI', async () => {
+  const manifest = require('../../assets/catalog.json');
+  for (const detail of ['simple', 'detailed']) {
+    const library = { listCandidates: async (size) => manifest.filter(row => row.detail === size) };
+    const service = new CompositionService({ select: async () => undefined }, library);
+    const result = await service.select({ mode: 'metaphor', text: 'Работа кипит!', detail });
+    assert.deepEqual(new Set(result.ids.slice(0, 2)), new Set(['pencil-main', 'folder-main']));
+  }
 });
 
 test('client-supplied names and unknown objects cannot enter the official selection', async () => {

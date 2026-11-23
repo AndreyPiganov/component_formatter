@@ -33,6 +33,7 @@ export function selectByNames(text: string, candidates: CatalogComponent[]): Sel
 
 // These phrases expand into catalog tags, so missing assets are never suggested.
 const sceneTerms = [
+  { phrases: ['работа кипит', 'кипит работа'], tags: ['папка', 'ручка', 'документ', 'письмо'] },
   { phrases: ['рабочий стол', 'рабочее место', 'офисный стол'], tags: ['лампа', 'письмо', 'документ'] },
   { phrases: ['подготовка к экзамену', 'учебный стол'], tags: ['книга', 'заметки', 'свет'] },
   { phrases: ['семейный бюджет', 'личные финансы'], tags: ['кошелек', 'монета', 'документ'] },

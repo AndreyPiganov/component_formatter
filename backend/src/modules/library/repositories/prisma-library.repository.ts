@@ -20,11 +20,11 @@ export class PrismaLibraryRepository implements LibraryRepository {
   async listCandidates(detail?: 'simple' | 'detailed', ids?: string[]) {
     const variants = await this.prisma.client.componentVariant.findMany({
       where: { detail: detail && { in: [detail, 'any'] }, publicId: ids && { in: ids } },
-      select: { publicId: true, role: true, component: { select: { name: true, tags: true } } },
+      select: { publicId: true, componentId: true, role: true, component: { select: { name: true, tags: true } } },
       orderBy: [{ sortOrder: 'asc' }, { publicId: 'asc' }],
       distinct: ['publicId'],
     });
-    return variants.map(({ publicId, role, component }) => ({ id: publicId, role, ...component }));
+    return variants.map(({ publicId, componentId, role, component }) => ({ id: publicId, componentId, role, ...component }));
   }
 
   async syncCatalog(entries: LibraryAsset[], complete: boolean): Promise<void> {
