@@ -6,7 +6,9 @@
 !frontend/index.html
 !frontend/tsconfig.json
 !frontend/vite.config.ts
-!frontend/nginx.conf
+!infra/
+!infra/nginx/
+!infra/nginx/default.conf
 !backend/
 !backend/src/
 !backend/src/common/

@@ -8,6 +8,6 @@ COPY backend/src/common/svg /app/backend/src/common/svg
 RUN npm run build
 
 FROM nginx:stable-alpine
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY infra/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
 EXPOSE 8080

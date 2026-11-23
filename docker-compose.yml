@@ -53,7 +53,7 @@ services:
   nginx:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: infra/nginx/Dockerfile
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
     depends_on:
