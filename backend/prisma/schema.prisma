@@ -43,3 +43,11 @@ model ComponentVariant {
   @@unique([publicId, detail])
   @@map("component_variants")
 }
+
+model AiUsageWindow {
+  period    String   @id
+  startsAt  DateTime @map("starts_at") @db.Timestamptz(3)
+  used      Int
+
+  @@map("ai_usage_windows")
+}

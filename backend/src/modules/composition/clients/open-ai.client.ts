@@ -1,3 +1,4 @@
+import { AiQuotaService } from '../services/ai-quota.service';
 import { Injectable, Logger } from '@nestjs/common';
 import type { LibraryCandidate } from '../../library/domain/library.types';
 import { AppConfigService } from '../../../config/app-config.service';
@@ -37,12 +38,13 @@ interface ResponseItem {
 export class OpenAiClient {
   private readonly logger = new Logger(OpenAiClient.name);
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(private readonly config: AppConfigService, private readonly quota: AiQuotaService) {}
 
   async select(text: string, candidates: LibraryCandidate[], colorOptions?: SceneColorOptions):
       Promise<{ placements: ScenePlacement[]; colors?: SceneColors } | undefined> {
     const key = this.config.openAiApiKey;
     if (!key || !candidates.length) return;
+    await this.quota.reserve();
     const subjects = new Map<string, {
       id: string; name: string; tags: string[]; variants: Partial<Record<LibraryCandidate['role'], string>>;
     }>();
@@ -62,6 +64,7 @@ export class OpenAiClient {
             'направление действия. Например, лампа за документами освещает место, где ручка касается страницы. ' +
             'Предмет, на котором совершается действие, тоже может быть цветным участником. Если сцене достаточно ' +
             'самих участников, оставь их одних. Соблюдай явные пожелания о ролях и количестве. ' +
+            'Для заголовка со сценой свяжи несколько подходящих предметов действием. Если просят один предмет, оставь его одного. ' +
             'Выбери до пяти разных предметов. Сначала поставь опорный предмет (relativeTo: null, dx: 0, dy: 0). ' +
             'Каждый следующий привяжи к ID одного из предыдущих. dx вправо, dy вниз, rotation в градусах по часовой стрелке. ' +
             'Смещение 1 означает касание краёв, 0.5 — частичное наложение, 0 — совпадение центров по этой оси. ' +

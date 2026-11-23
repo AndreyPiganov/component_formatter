@@ -69,7 +69,7 @@ test('constrains model output to the catalog and falls back when an unknown ID i
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(body) }] }],
     }));
   });
-  const service = new CompositionService(new OpenAiClient(new AppConfigService()), catalog);
+  const service = new CompositionService(new OpenAiClient(new AppConfigService(), { reserve: async () => {} }), catalog);
   const input = readCompositionRequest({ mode: 'metaphor', text: 'свет', detail: 'simple' });
   const first = await service.select(input);
   assert.equal(first.method, 'ai');
@@ -121,17 +121,34 @@ test('client-supplied names and unknown objects cannot enter the official select
   assert.throws(() => readCompositionRequest({ mode: 'names', text: 'книга', detail: 'invalid' }));
 });
 
-test('builds a workspace scene with an unavailable provider or a single matching AI suggestion', async () => {
+test('builds a workspace scene with an unavailable provider and respects an explicit single-object AI plan', async () => {
   const library = { listCandidates: async () => [
     { ...candidates[2], tags: ['работа', 'лампа'] },
     { id: 'folder', name: 'Папка', tags: ['документ'], role: 'main' },
     { id: 'pen', name: 'Ручка', tags: ['письмо'], role: 'main' },
     { id: 'coin', name: 'Монета', tags: ['монета'], role: 'main' },
   ] };
-  for (const answer of [undefined, { placements: [{ assetId: 'lamp-main', relativeTo: null, dx: 0, dy: 0, rotation: 0 }] }]) {
-    const service = new CompositionService({ select: async () => answer }, library);
-    const result = await service.select({ mode: 'metaphor', text: 'Мой рабочий стол', detail: 'simple' });
-    assert.deepEqual(new Set(result.ids), new Set(['lamp-main', 'folder', 'pen']));
-    assert.equal(result.method, 'keywords');
-  }
+  const fallback = new CompositionService({ select: async () => undefined }, library);
+  const result = await fallback.select({ mode: 'metaphor', text: 'Мой рабочий стол', detail: 'simple' });
+  assert.deepEqual(new Set(result.ids), new Set(['lamp-main', 'folder', 'pen']));
+  const plan = { placements: [{ assetId: 'lamp-main', relativeTo: null, dx: 0, dy: 0, rotation: 5 }],
+    colors: { schemeIndex: 1, background: 2 } };
+  const ai = new CompositionService({ select: async () => plan }, library);
+  assert.deepEqual(await ai.select({ mode: 'metaphor', text: 'Рабочий стол, только лампа', detail: 'simple' }),
+    { ...plan, method: 'ai', ids: ['lamp-main'], unmatched: [] });
+});
+
+test('reserves quota before the first paid call and skips it for free selections', async (context) => {
+  const quotaError = Object.assign(new Error('quota'), { status: 429 });
+  const reserve = context.mock.fn(async () => { throw quotaError; });
+  const fetch = context.mock.method(globalThis, 'fetch', () => assert.fail('unexpected paid request'));
+  const config = { openAiApiKey: 'test-key' };
+  const service = new CompositionService(new OpenAiClient(config, { reserve }), catalog);
+  const request = { mode: 'metaphor', text: 'Свет', detail: 'simple' };
+  await assert.rejects(service.select(request), error => error === quotaError);
+  assert.equal((await service.select({ ...request, mode: 'names', text: 'лампа' })).method, 'names');
+  config.openAiApiKey = '';
+  assert.equal((await service.select(request)).method, 'keywords');
+  assert.equal(reserve.mock.callCount(), 1);
+  assert.equal(fetch.mock.callCount(), 0);
 });
