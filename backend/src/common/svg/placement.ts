@@ -6,4 +6,5 @@ export interface ScenePlacement {
   dx: number;
   dy: number;
   rotation: number;
+  depth?: number;
 }

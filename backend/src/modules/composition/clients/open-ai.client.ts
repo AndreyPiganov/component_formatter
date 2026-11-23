@@ -46,7 +46,8 @@ export class OpenAiClient {
             'заведи силуэты друг на друга: опору положи первой, а стоящий на ней предмет нижним краем на её плоскость. ' +
             'Для такого положения попробуй dy от -0.55 до -0.8. Для выглядывающей детали оставь узнаваемую часть снаружи. ' +
             'Проверь силуэты: понятен ли зрителю глагол в заголовке и виден ли каждый выбранный предмет? ' +
-            'Фон рисуется позади цветных предметов, внутри роли следующие слои лежат поверх предыдущих. ' +
+            'Фон рисуется позади цветных предметов. Внутри роли depth задаёт порядок от дальнего (0) до ближнего (4) ' +
+            'независимо от опоры. Если один предмет входит в другой, покажи часть первого из-за края второго. ' +
             'При отсутствии подходящих предметов верни пустой список.',
           ...body }),
       });
@@ -76,20 +77,22 @@ export class OpenAiClient {
         text: { format: { type: 'json_schema', name: 'selection', strict: true,
           schema: { type: 'object', additionalProperties: false, required: ['layers'],
             properties: { layers: { type: 'array', maxItems: 5, items: {
-              type: 'object', additionalProperties: false, required: ['id', 'role', 'relativeTo', 'dx', 'dy', 'rotation'],
+              type: 'object', additionalProperties: false, required: ['id', 'role', 'relativeTo', 'dx', 'dy', 'rotation', 'depth'],
               properties: { id: idType, role: { type: 'string', enum: ['main', 'background'] },
                 relativeTo: { anyOf: [idType, { type: 'null' }] }, dx: offset, dy: offset,
-                rotation: { type: 'number', minimum: -180, maximum: 180 } },
+                rotation: { type: 'number', minimum: -180, maximum: 180 },
+                depth: { type: 'integer', minimum: 0, maximum: 4 } },
             } } } } } },
       });
       const content = answer.flatMap((item) => item.content ?? []).find((item) => item.type === 'output_text');
       const { layers } = JSON.parse(content?.text ?? '{}');
       if (!Array.isArray(layers) || layers.length > 5) throw new Error('Некорректное число слоёв');
       const chosen = new Map<string, string>();
-      return layers.map(({ id, role, relativeTo, dx, dy, rotation }, index) => {
+      return layers.map(({ id, role, relativeTo, dx, dy, rotation, depth }, index) => {
         const subject = subjects.get(id);
         if (!subject || chosen.has(id) || (role !== 'main' && role !== 'background')) throw new Error('Недопустимый предмет');
         if (index === 0 ? relativeTo !== null : !chosen.has(relativeTo)) throw new Error('Некорректная опора');
+        if (!Number.isInteger(depth) || depth < 0 || depth > 4) throw new Error('Некорректный порядок слоёв');
         if (![dx, dy, rotation].every(Number.isFinite) || Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5 || Math.abs(rotation) > 180) {
           throw new Error('Некорректное размещение');
         }
@@ -97,7 +100,7 @@ export class OpenAiClient {
         const assetId = (role === 'main' ? variants.main : variants.background) ?? variants.main ?? variants.background!;
         const anchor = chosen.get(relativeTo) ?? null;
         chosen.set(id, assetId);
-        return { assetId, relativeTo: anchor, dx, dy, rotation };
+        return { assetId, relativeTo: anchor, dx, dy, rotation, depth };
       });
     } catch (error) {
       this.logger.warn('Подбор по тегам. ' + (error instanceof Error ? error.message : 'Ошибка OpenAI'));

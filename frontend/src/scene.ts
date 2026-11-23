@@ -115,6 +115,7 @@ interface PlacedObject {
   halfWidth: number;
   halfHeight: number;
   rotation: number;
+  depth: number;
 }
 
 function coveredFraction(rear: PlacedObject, front: PlacedObject, x: number, y: number) {
@@ -145,7 +146,7 @@ function arrangeScene(assets: SvgAsset[], artboard: Artboard, plan: ScenePlaceme
   if (assets.length !== plan.length) return;
   const positions = new Map<string, PlacedObject>();
   for (const [index, asset] of assets.entries()) {
-    const { assetId, relativeTo, rotation, dx, dy } = plan[index];
+    const { assetId, relativeTo, rotation, dx, dy, depth = 0 } = plan[index];
     const anchor = relativeTo === null ? undefined : positions.get(relativeTo);
     if (assetId !== asset.id || (index > 0 && !anchor)) return;
     const angle = rotation * Math.PI / 180;
@@ -158,10 +159,10 @@ function arrangeScene(assets: SvgAsset[], artboard: Artboard, plan: ScenePlaceme
     const diagonal = distance ? Math.max(Math.abs(dx), Math.abs(dy)) / distance : 1;
     const x = anchor ? anchor.x + dx * diagonal * (anchor.halfWidth + halfWidth) : 0;
     const y = anchor ? anchor.y + dy * diagonal * (anchor.halfHeight + halfHeight) : 0;
-    positions.set(assetId, { asset, x, y, halfWidth, halfHeight, rotation });
+    positions.set(assetId, { asset, x, y, halfWidth, halfHeight, rotation, depth });
   }
   const objects = Array.from(positions.values())
-    .sort((a, b) => Number(a.asset.role === 'main') - Number(b.asset.role === 'main'));
+    .sort((a, b) => Number(a.asset.role === 'main') - Number(b.asset.role === 'main') || a.depth - b.depth);
   revealHiddenObjects(objects);
   const left = Math.min(...objects.map(o => o.x - o.halfWidth));
   const right = Math.max(...objects.map(o => o.x + o.halfWidth));

@@ -47,8 +47,8 @@ test('constrains model output to the catalog and falls back when an unknown ID i
     if (previous === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previous;
   });
-  const book = { id: 'book', role: 'main', relativeTo: null, dx: 0, dy: 0, rotation: -8 };
-  const lamp = { id: 'lamp', role: 'main', relativeTo: 'book', dx: -.6, dy: -.7, rotation: 5 };
+  const book = { id: 'book', role: 'main', relativeTo: null, dx: 0, dy: 0, rotation: -8, depth: 2 };
+  const lamp = { id: 'lamp', role: 'main', relativeTo: 'book', dx: -.6, dy: -.7, rotation: 5, depth: 1 };
   const body = { layers: [book, lamp] };
   context.mock.method(globalThis, 'fetch', async (_url, request) => {
     const input = JSON.parse(request.body);
@@ -75,10 +75,10 @@ test('constrains model output to the catalog and falls back when an unknown ID i
   assert.deepEqual(first.ids, ['book-main', 'lamp-main']);
   book.role = 'background';
   assert.deepEqual((await service.select(input)).placements, [
-    { assetId: 'book-background', relativeTo: null, dx: 0, dy: 0, rotation: -8 },
-    { assetId: 'lamp-main', relativeTo: 'book-background', dx: -.6, dy: -.7, rotation: 5 },
+    { assetId: 'book-background', relativeTo: null, dx: 0, dy: 0, rotation: -8, depth: 2 },
+    { assetId: 'lamp-main', relativeTo: 'book-background', dx: -.6, dy: -.7, rotation: 5, depth: 1 },
   ]);
-  for (const invalid of [{ id: 'invented' }, { relativeTo: 'lamp' }, { dx: 2 }, { id: 'book' }]) {
+  for (const invalid of [{ id: 'invented' }, { relativeTo: 'lamp' }, { dx: 2 }, { id: 'book' }, { depth: 8 }]) {
     body.layers = [book, { ...lamp, ...invalid }];
     assert.deepEqual(await service.select(input), { method: 'keywords', ids: ['lamp-main'], unmatched: [] });
   }

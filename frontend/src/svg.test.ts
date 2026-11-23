@@ -192,4 +192,15 @@ describe('size variants and palette', () => {
     expect(token.x - base.x).toBeCloseTo((phone.width + coin.width) * .15 * base.scale);
     expect(base.y - token.y).toBeCloseTo((phone.height + coin.height) * .15 * base.scale);
   });
+
+  it('can tuck a colored coin behind the wallet it is positioned against', () => {
+    const wallet = parseSvg(entry, fixture);
+    const coin = { ...wallet, id: 'coin', width: 8, height: 8 };
+    const layers = arrangeObjects([wallet, coin], { ...formats[0], background: 'transparent' }, [
+      { assetId: wallet.id, relativeTo: null, dx: 0, dy: 0, rotation: 0, depth: 2 },
+      { assetId: coin.id, relativeTo: wallet.id, dx: .85, dy: 0, rotation: 12, depth: 1 },
+    ]);
+    expect(layers.map(layer => layer.assetId)).toEqual([coin.id, wallet.id]);
+    expect(layers[0].x).toBeGreaterThan(layers[1].x);
+  });
 });
