@@ -11,6 +11,12 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; }
+#root {
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
 button, input, select { font: inherit; }
 button, select { cursor: pointer; }
 button { color: inherit; }
@@ -72,10 +78,10 @@ h2 { font-size: .96rem; font-weight: 680; }
 .layout {
   display: grid;
   grid-template-columns: minmax(210px, 264px) minmax(0, 1fr) minmax(210px, 250px);
-  min-height: calc(100dvh - 68px);
+  min-width: 0;
+  min-height: 0;
 }
 .panel {
-  max-height: calc(100dvh - 68px);
   overflow: auto;
   min-width: 0;
   padding: 1rem;
@@ -197,7 +203,6 @@ select {
 .inspector select { width: 100%; }
 .canvas-viewport {
   container-type: size;
-  height: max(325px, calc(100dvh - 285px));
   overflow: auto;
   overscroll-behavior: contain;
   background-image: radial-gradient(#d8d1e3 1px, transparent 1px);
@@ -319,14 +324,27 @@ select {
 }
 .layer-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .78rem; }
 
+@media (width > 790px) {
+  .layout { grid-template-rows: minmax(0, 1fr); }
+  .work-area { display: flex; flex-direction: column; overflow: auto; }
+  .work-area > * { flex-shrink: 0; }
+  .canvas-space {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    flex: 1 0 10rem;
+  }
+}
 @media (max-width: 1000px) {
   .layout { grid-template-columns: minmax(175px, 215px) minmax(0, 1fr) minmax(178px, 205px); }
   .panel { padding: .75rem; }
 }
 @media (max-width: 790px) {
-  .layout { grid-template-columns: minmax(160px, 220px) minmax(0, 1fr); }
+  .layout {
+    grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+    overflow: auto;
+    align-content: start;
+  }
   .inspector { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
-  .panel { max-height: none; }
   .library { max-height: 74vh; }
   .canvas-viewport { height: max(330px, 55dvh); }
 }
@@ -334,6 +352,7 @@ select {
   .app-header { padding-inline: .7rem; }
   .brand h1 { font-size: 1.05rem; }
   .layout { display: flex; flex-direction: column; }
+  .layout > * { flex: none; }
   .work-area { order: -1; }
   .asset-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .library { max-height: 45vh; border: 0; border-top: 1px solid var(--line); }
