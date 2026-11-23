@@ -35,8 +35,8 @@ services:
       <<: *database-environment
       ASSETS_DIR: /assets
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      AI_COMPOSITIONS_PER_MINUTE: "${AI_COMPOSITIONS_PER_MINUTE:-6}"
-      AI_COMPOSITIONS_PER_DAY: "${AI_COMPOSITIONS_PER_DAY:-60}"
+      # AI_COMPOSITIONS_PER_MINUTE: "${AI_COMPOSITIONS_PER_MINUTE:-6}"
+      # AI_COMPOSITIONS_PER_DAY: "${AI_COMPOSITIONS_PER_DAY:-60}"
       OPENAI_MODEL: "${OPENAI_MODEL:-gpt-5.4}"
     depends_on:
       migrate:

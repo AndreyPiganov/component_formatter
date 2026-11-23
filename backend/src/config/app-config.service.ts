@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { readDatabaseUrl } from './database.config';
 
-function readQuota(name: string, fallback: number) {
-  const raw = process.env[name]?.trim();
-  if (!raw) return fallback;
-  const limit = Number(raw);
-  if (!Number.isSafeInteger(limit) || limit < 0 || limit > 2_147_483_647) {
-    throw new Error(name + ' must be a non-negative 32-bit integer');
-  }
-  return limit;
-}
+// function readQuota(name: string, fallback: number) {
+//   const raw = process.env[name]?.trim();
+//   if (!raw) return fallback;
+//   const limit = Number(raw);
+//   if (!Number.isSafeInteger(limit) || limit < 0 || limit > 2_147_483_647) {
+//     throw new Error(name + ' must be a non-negative 32-bit integer');
+//   }
+//   return limit;
+// }
 
 @Injectable()
 export class AppConfigService {
@@ -29,9 +29,9 @@ export class AppConfigService {
     return process.env.OPENAI_API_KEY?.trim();
   }
 
-  get aiQuota() {
-    return { minute: readQuota('AI_COMPOSITIONS_PER_MINUTE', 6), day: readQuota('AI_COMPOSITIONS_PER_DAY', 60) };
-  }
+  // get aiQuota() {
+  //   return { minute: readQuota('AI_COMPOSITIONS_PER_MINUTE', 6), day: readQuota('AI_COMPOSITIONS_PER_DAY', 60) };
+  // }
 
   get openAiModel() {
     return process.env.OPENAI_MODEL?.trim() || 'gpt-5.4';

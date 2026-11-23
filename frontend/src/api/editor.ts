@@ -36,10 +36,12 @@ export async function selectObjects(mode: CompositionMode, text: string, detail:
     body: JSON.stringify({ mode, text, detail, colorOptions }),
     signal: AbortSignal.timeout(45_000),
   });
+  /*
   if (response.status === 429) {
     const error = await response.json().catch(() => null);
     throw new Error(typeof error?.message === 'string' ? error.message : 'Исчерпан лимит AI-сборок. Попробуйте позже.');
   }
+  */
   if (!response.ok) throw new Error('Не удалось собрать композицию. Проверьте запрос и повторите.');
   return await response.json() as Selection;
 }

@@ -1,4 +1,4 @@
-import { AiQuotaService } from '../services/ai-quota.service';
+// import { AiQuotaService } from '../services/ai-quota.service';
 import { Injectable, Logger } from '@nestjs/common';
 import type { LibraryCandidate } from '../../library/domain/library.types';
 import { AppConfigService } from '../../../config/app-config.service';
@@ -38,13 +38,16 @@ interface ResponseItem {
 export class OpenAiClient {
   private readonly logger = new Logger(OpenAiClient.name);
 
-  constructor(private readonly config: AppConfigService, private readonly quota: AiQuotaService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    // private readonly quota: AiQuotaService,
+  ) {}
 
   async select(text: string, candidates: LibraryCandidate[], colorOptions?: SceneColorOptions):
       Promise<{ placements: ScenePlacement[]; colors?: SceneColors } | undefined> {
     const key = this.config.openAiApiKey;
     if (!key || !candidates.length) return;
-    await this.quota.reserve();
+    // await this.quota.reserve();
     const subjects = new Map<string, {
       id: string; name: string; tags: string[]; variants: Partial<Record<LibraryCandidate['role'], string>>;
     }>();

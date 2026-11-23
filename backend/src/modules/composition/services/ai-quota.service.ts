@@ -1,3 +1,4 @@
+/* AI usage quotas are suspended for the demo.
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { AppConfigService } from '../../../config/app-config.service';
 import { PrismaService } from '../../../database/prisma.service';
@@ -31,3 +32,4 @@ export class AiQuotaService {
     });
   }
 }
+*/

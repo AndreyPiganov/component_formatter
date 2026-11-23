@@ -69,7 +69,7 @@ test('constrains model output to the catalog and falls back when an unknown ID i
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(body) }] }],
     }));
   });
-  const service = new CompositionService(new OpenAiClient(new AppConfigService(), { reserve: async () => {} }), catalog);
+  const service = new CompositionService(new OpenAiClient(new AppConfigService()), catalog);
   const input = readCompositionRequest({ mode: 'metaphor', text: 'свет', detail: 'simple' });
   const first = await service.select(input);
   assert.equal(first.method, 'ai');
@@ -138,6 +138,7 @@ test('builds a workspace scene with an unavailable provider and respects an expl
     { ...plan, method: 'ai', ids: ['lamp-main'], unmatched: [] });
 });
 
+/* Quota coverage is suspended with the quota service.
 test('reserves quota before the first paid call and skips it for free selections', async (context) => {
   const quotaError = Object.assign(new Error('quota'), { status: 429 });
   const reserve = context.mock.fn(async () => { throw quotaError; });
@@ -152,3 +153,4 @@ test('reserves quota before the first paid call and skips it for free selections
   assert.equal(reserve.mock.callCount(), 1);
   assert.equal(fetch.mock.callCount(), 0);
 });
+*/
