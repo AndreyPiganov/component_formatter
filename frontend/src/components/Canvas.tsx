@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { CanvasViewport } from './CanvasViewport';
 import { Layers } from 'lucide-react';
-import { layerTransform, renderAsset, type Artboard, type Layer, type SvgAsset } from './svg';
+import { layerTransform, renderAsset, type Artboard, type Layer, type SvgAsset } from '../model/svg';
 
 interface CanvasProps {
   artboard: Artboard;

@@ -1,6 +1,6 @@
-import { parseSvg, type CatalogEntry, type Layer, type SvgAsset } from './svg';
-import type { Scheme } from './palette';
-import type { CompositionMode } from './api';
+import { parseSvg, type CatalogEntry, type Layer, type SvgAsset } from '../model/svg';
+import type { Scheme } from '../model/palette';
+import type { CompositionMode } from '../api/editor';
 
 export interface PersonalAsset extends SvgAsset { markup: string }
 interface StoredSvg { entry: CatalogEntry; markup: string }

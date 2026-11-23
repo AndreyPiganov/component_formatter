@@ -1,5 +1,5 @@
 import { newId, type Artboard, type Detail, type Layer, type SvgAsset } from './svg';
-import type { ScenePlacement } from '../../backend/src/common/svg/placement';
+import type { ScenePlacement } from '../../../backend/src/common/svg/placement';
 import { schemeColors, schemes } from './palette';
 
 export const formats = [

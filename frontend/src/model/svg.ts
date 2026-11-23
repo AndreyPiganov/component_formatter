@@ -1,9 +1,9 @@
-import { luminance } from '../../backend/src/common/svg/palette';
+import { luminance } from '../../../backend/src/common/svg/palette';
 import {
   checkSvgMarkup, localUrl, paintAttributes, parseStyle, parseViewport,
   svgNamespace, VectorDocumentCheck, xmlnsNamespace,
-} from '../../backend/src/common/svg/validation';
-export { maxSvgBytes } from '../../backend/src/common/svg/validation';
+} from '../../../backend/src/common/svg/validation';
+export { maxSvgBytes } from '../../../backend/src/common/svg/validation';
 
 export type Detail = 'detailed' | 'simple';
 export type Role = 'main' | 'background';

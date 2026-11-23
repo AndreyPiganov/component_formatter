@@ -1,6 +1,6 @@
 import { mapPalette, type SvgAsset } from './svg';
 
-import { readScheme, schemes, type Scheme } from '../../backend/src/common/svg/palette';
+import { readScheme, schemes, type Scheme } from '../../../backend/src/common/svg/palette';
 export { schemes, type Scheme };
 
 export function parseScheme(input: string): Scheme {

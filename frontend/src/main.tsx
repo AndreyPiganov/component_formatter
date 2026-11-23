@@ -1,8 +1,8 @@
-import { openDraft } from './draft';
+import { openDraft } from './storage/draft';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
-import './styles.css';
+import App from './app/App';
+import './app/styles.css';
 
 const root = createRoot(document.getElementById('root') as HTMLElement);
 root.render(<p role="status">Открываем редактор…</p>);

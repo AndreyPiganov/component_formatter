@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
-import type { Artboard } from './svg';
+import type { Artboard } from '../model/svg';
 
 const minZoom = .25;
 const maxZoom = 4;

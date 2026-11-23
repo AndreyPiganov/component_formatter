@@ -1,7 +1,7 @@
-import { referenceSizedAssets } from './scene';
-import type { ScenePlacement } from '../../backend/src/common/svg/placement';
-import type { SceneColorOptions, SceneColors } from '../../backend/src/common/svg/palette';
-import { parseSvg, type CatalogEntry, type Detail, type SvgAsset } from './svg';
+import { referenceSizedAssets } from '../model/scene';
+import type { ScenePlacement } from '../../../backend/src/common/svg/placement';
+import type { SceneColorOptions, SceneColors } from '../../../backend/src/common/svg/palette';
+import { parseSvg, type CatalogEntry, type Detail, type SvgAsset } from '../model/svg';
 
 export type CompositionMode = 'names' | 'metaphor';
 

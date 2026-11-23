@@ -3,10 +3,10 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import App from './App';
-import { loadLibrary, selectObjects } from './api';
-import { parseSvg } from './svg';
+import { loadLibrary, selectObjects } from '../api/editor';
+import { parseSvg } from '../model/svg';
 
-vi.mock('./api', () => ({ loadLibrary: vi.fn(), selectObjects: vi.fn() }));
+vi.mock('../api/editor', () => ({ loadLibrary: vi.fn(), selectObjects: vi.fn() }));
 
 it.each([false, true])('keeps manual edits until the user chooses the pending composition (apply=%s)', async (apply) => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);

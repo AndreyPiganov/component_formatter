@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import {
-  ArrowDown, ArrowUp, Copy, Download, FlipHorizontal2, FlipVertical2, Grid2X2, Layers, Palette, Plus,
-  Search, Sparkles, Trash2, Upload,
-} from 'lucide-react';
-import { loadLibrary, selectObjects, type CompositionMode } from './api';
-import { Canvas } from './Canvas';
-import { assetPalette, parseScheme, sceneColorOptions, schemeColors, schemes, type Scheme } from './palette';
-import { arrangeObjects, assetsForLayers, formats, initialScale, placeAsset, resizeLayers, scaleComposition, visibleAssets } from './scene';
-import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } from './svg';
+import { Download, Grid2X2, Layers, Palette, Sparkles, Upload } from 'lucide-react';
+import { LibraryPanel } from '../components/LibraryPanel';
+import { LayerInspector } from '../components/LayerInspector';
+import { NumberField } from '../components/NumberField';
+import { loadLibrary, selectObjects, type CompositionMode } from '../api/editor';
+import { Canvas } from '../components/Canvas';
+import { assetPalette, parseScheme, sceneColorOptions, schemes, type Scheme } from '../model/palette';
+import { arrangeObjects, assetsForLayers, formats, initialScale, placeAsset, resizeLayers, scaleComposition, visibleAssets } from '../model/scene';
+import { exportSvg, newId, type Layer, type SvgAsset } from '../model/svg';
 
-import type { Draft, DraftStore, PersonalAsset } from './draft';
+import type { Draft, DraftStore, PersonalAsset } from '../storage/draft';
 
 type Background = number | 'transparent';
 
@@ -55,7 +55,6 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
   const [prompt, setPrompt] = useState(draft?.prompt ?? '');
   const [building, setBuilding] = useState(false);
   const [status, setStatus] = useState('');
-  const libraryUpload = useRef<HTMLInputElement>(null);
   const paletteUpload = useRef<HTMLInputElement>(null);
 
   const [saveError, setSaveError] = useState(storageError);
@@ -110,37 +109,11 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
   const personalIds = useMemo(() => new Set(imported.map(({ id }) => id)), [imported]);
   const personalScene = layers.some((layer) => personalIds.has(layer.assetId));
   const hasCatalog = [...available.keys()].some((id) => !personalIds.has(id));
-  const filtered = [...available.values()].filter((asset) => {
-    const item = [asset.name, asset.source, ...asset.tags].join(' ').toLocaleLowerCase('ru');
-    return item.includes(query.trim().toLocaleLowerCase('ru'));
-  });
   const selected = layers.find((layer) => layer.id === selectedId);
   const selectedAsset = selected && sceneAssets.get(selected.assetId);
 
-  const otherRole = selectedAsset?.componentId && [...available.values()].find((asset) =>
-    asset.componentId === selectedAsset.componentId && asset.role !== selectedAsset.role);
-
-  async function importAssets(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = '';
-    if (!files.length) return;
-    const loaded: PersonalAsset[] = [];
-    const errors: string[] = [];
-    for (const file of files) {
-      try {
-        if (file.size > maxSvgBytes) throw new Error('Максимальный размер SVG — 1 МБ.');
-        const name = file.name.replace(/\.svg$/i, '').replace(/[-_]+/g, ' ').trim().slice(0, 160) || 'Объект';
-        const markup = await file.text();
-        loaded.push({ ...parseSvg({
-          id: 'local:' + newId(), name, source: 'Импорт SVG', tags: [], detail: 'any', role: 'main',
-        }, markup), markup });
-      } catch (error) {
-        errors.push(file.name + ' · ' + (error as Error).message);
-      }
-    }
-    setImported((current) => [...current, ...loaded]);
-    setStatus('Импортировано SVG: ' + loaded.length + '. ' + errors.slice(0, 3).join(' '));
-  }
+  const otherRole = selectedAsset?.componentId ? [...available.values()].find((asset) =>
+    asset.componentId === selectedAsset.componentId && asset.role !== selectedAsset.role) : undefined;
 
   async function importPalette(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -277,40 +250,9 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
     </header>
 
     <main className="layout">
-      <aside className="panel library" aria-label="Библиотека">
-        <div className="panel-title">
-          <h2><Grid2X2 size={17} /> Библиотека</h2>
-          <button className="button secondary" aria-label="Загрузить свой SVG" title="Загрузить свой SVG"
-            onClick={() => libraryUpload.current?.click()}><Upload size={16} /> Свой SVG</button>
-          <input type="file" accept=".svg,image/svg+xml" multiple hidden ref={libraryUpload} onChange={importAssets} />
-        </div>
-        <label className="search">
-          <Search size={16} />
-          <input placeholder="Найти объект" aria-label="Найти объект" value={query}
-            onChange={(event) => setQuery(event.target.value)} />
-        </label>
-        {libraryStatus && <p className="muted" role="status">{libraryStatus}</p>}
-        {available.size === 0 && <div className="library-empty">
-          <p>Загрузите SVG-компоненты, чтобы собрать композицию.</p>
-          <button className="button secondary" onClick={() => libraryUpload.current?.click()}>
-            <Plus size={16} /> Загрузить SVG
-          </button>
-        </div>}
-        {available.size > 0 && filtered.length === 0 && <p className="muted">Объекты не найдены.</p>}
-        {(['main', 'background', 'personal'] as const).map((role) => {
-          const items = filtered.filter((asset) => personalIds.has(asset.id) ? role === 'personal' : asset.role === role);
-          return items.length > 0 && <section className="asset-section" key={role}>
-            <h3>{role === 'personal' ? 'Мои SVG' : role === 'main' ? 'Главные объекты' : 'Фоновые объекты'}</h3>
-            <div className="asset-grid">
-              {items.map((asset) => <button className="asset-card" key={asset.id} onClick={() => addObject(asset)}
-                title={'Добавить «' + asset.name + '» · ' + asset.source}>
-                <img src={asset.thumbnail} alt="" loading="lazy" />
-                <span>{asset.name}</span>
-              </button>)}
-            </div>
-          </section>;
-        })}
-      </aside>
+      <LibraryPanel available={available} personalIds={personalIds} libraryStatus={libraryStatus} query={query}
+        setQuery={setQuery} addObject={addObject} onImport={(loaded) => setImported(current => [...current, ...loaded])}
+        setStatus={setStatus} />
 
       <section className="work-area" aria-label="Рабочая область">
         <form className="compose-form" onSubmit={compose} aria-label="Автосборка композиции">
@@ -402,85 +344,10 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
           </ul>
         </section>
 
-        {selected && selectedAsset && <section className="inspector-section">
-          <div className="panel-title"><h2>{selectedAsset.name}</h2></div>
-          {otherRole && <label className="role-field">Роль объекта
-            <select value={selectedAsset.role} onChange={() => patchLayer(selected.id, {
-              assetId: otherRole.id,
-              colorSlots: undefined,
-            })}>
-              <option value="main">Главный</option>
-              <option value="background">Фоновый</option>
-            </select>
-          </label>}
-          {scheme && selectedAsset.colors.length > 0 && <fieldset className="object-colors">
-            <legend>Цвета объекта</legend>
-            {selectedAsset.colors.map((source) => {
-              const palette = palettes.get(selectedAsset.id)!;
-              const base = schemeColors(schemes[0], selectedAsset.role);
-              const targets = schemeColors(scheme, selectedAsset.role);
-              const chosen = selected.colorSlots?.[source];
-              const index = chosen ? base.indexOf(chosen) : targets.indexOf(palette.get(source)!);
-              return <label key={source} className="object-paint">
-                <span className="swatch" style={{ backgroundColor: source }} title={'Исходный цвет ' + source} />
-                <span aria-hidden="true">→</span>
-                <span className="swatch" style={{ backgroundColor: targets[index] }} />
-                <select aria-label={'Замена цвета ' + source} value={index} onChange={(event) =>
-                  patchLayer(selected.id, { colorSlots: { ...selected.colorSlots, [source]: base[Number(event.target.value)] } })}>
-                  {targets.map((color, slot) => <option key={slot} value={slot}>{color.toUpperCase()}</option>)}
-                </select>
-              </label>;
-            })}
-            {selected.colorSlots && <button className="button secondary"
-              onClick={() => patchLayer(selected.id, { colorSlots: undefined })}>Сбросить цвета объекта</button>}
-          </fieldset>}
-          {!scheme && <p className="muted">Для перекраски объекта выберите цветовую схему.</p>}
-          <div className="fields">
-            <NumberField label="X" value={Math.round(selected.x)} onChange={(x) => patchLayer(selected.id, { x })} />
-            <NumberField label="Y" value={Math.round(selected.y)} onChange={(y) => patchLayer(selected.id, { y })} />
-            <NumberField label="Угол, °" value={selected.rotation}
-              onChange={(rotation) => patchLayer(selected.id, { rotation })} />
-          </div>
-          <div className="layer-actions">
-            <button className="icon-button" aria-label="Отразить по горизонтали" title="Отразить по горизонтали"
-              aria-pressed={!!selected.flipX} onClick={() => patchLayer(selected.id, { flipX: !selected.flipX })}>
-              <FlipHorizontal2 size={16} />
-            </button>
-            <button className="icon-button" aria-label="Отразить по вертикали" title="Отразить по вертикали"
-              aria-pressed={!!selected.flipY} onClick={() => patchLayer(selected.id, { flipY: !selected.flipY })}>
-              <FlipVertical2 size={16} />
-            </button>
-            <button className="icon-button" aria-label="Поднять слой" title="Поднять слой"
-              disabled={layers.at(-1)?.id === selected.id} onClick={() => reorderLayer(selected.id, 1)}>
-              <ArrowUp size={16} />
-            </button>
-            <button className="icon-button" aria-label="Опустить слой" title="Опустить слой"
-              disabled={layers[0]?.id === selected.id} onClick={() => reorderLayer(selected.id, -1)}>
-              <ArrowDown size={16} />
-            </button>
-            <button className="icon-button" aria-label="Дублировать слой" title="Дублировать слой"
-              onClick={() => duplicateLayer(selected)}><Copy size={16} /></button>
-            <button className="icon-button danger" aria-label="Удалить слой" title="Удалить слой"
-              onClick={() => deleteLayer(selected.id)}><Trash2 size={16} /></button>
-          </div>
-        </section>}
+        {selected && selectedAsset && <LayerInspector selected={selected} selectedAsset={selectedAsset}
+          otherRole={otherRole} scheme={scheme} palette={palettes.get(selectedAsset.id)!} layers={layers}
+          patchLayer={patchLayer} reorderLayer={reorderLayer} duplicateLayer={duplicateLayer} deleteLayer={deleteLayer} />}
       </aside>
     </main>
   </>;
-}
-
-function NumberField({ label, value, min, onChange }: {
-  label: string; value: number; min?: number; onChange: (value: number) => void;
-}) {
-  return <label className="number-field">
-    <span>{label}</span>
-    <input type="number" key={value} defaultValue={value} min={min} onBlur={(event) => {
-      const next = event.target.valueAsNumber;
-      if (Number.isFinite(next) && Math.abs(next) < 1_000_000 && (min === undefined || next >= min)) {
-        if (next !== value) onChange(next);
-      } else {
-        event.target.value = String(value);
-      }
-    }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} />
-  </label>;
 }
