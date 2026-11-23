@@ -105,6 +105,22 @@ describe('size variants and palette', () => {
     ]);
   });
 
+  it('keeps adjacent objects touching across aspect ratios and restores their positions on return', () => {
+    const square = { ...formats[0], background: 'transparent' };
+    const cover = { ...formats[2], background: 'transparent' };
+    const asset = { ...parseSvg(entry, fixture), width: 100 };
+    const layers = [placeAsset(asset, square, 400, 600, 1), placeAsset(asset, square, 500, 600, 1)];
+    const [left, right] = resizeLayers(layers, square, cover);
+    expect(right.x - left.x).toBeCloseTo(asset.width * left.scale);
+    expect(right.x).toBe(cover.width / 2);
+    const restored = resizeLayers([left, right], cover, square);
+    for (const [i, layer] of restored.entries()) {
+      expect(layer.x).toBeCloseTo(layers[i].x);
+      expect(layer.y).toBeCloseTo(layers[i].y);
+      expect(layer.scale).toBeCloseTo(1);
+    }
+  });
+
   it('prefers exact detail in either catalog order and retains unavailable artwork only for placed layers', () => {
     const simple = parseSvg({ ...entry, detail: 'simple' }, fixture);
     const generic = { ...simple, detail: 'any' as const };

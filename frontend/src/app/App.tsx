@@ -9,6 +9,7 @@ import { assetPalette, parseScheme, sceneColorOptions, schemes, type Scheme } fr
 import { arrangeObjects, assetsForLayers, formats, initialScale, placeAsset, resizeLayers, scaleComposition, visibleAssets } from '../model/scene';
 import { exportSvg, newId, type Layer, type SvgAsset } from '../model/svg';
 
+import { useDraftAutosave } from '../storage/useDraftAutosave';
 import type { Draft, DraftStore, PersonalAsset } from '../storage/draft';
 
 type Background = number | 'transparent';
@@ -57,27 +58,12 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
   const [status, setStatus] = useState('');
   const paletteUpload = useRef<HTMLInputElement>(null);
 
-  const [saveError, setSaveError] = useState(storageError);
+  const [dragging, setDragging] = useState(false);
   const snapshot = useMemo<Draft>(() => ({
     layers, personalIds: imported.map((asset) => asset.id), selectedId, selectedIds, formatIndex, paletteList,
     schemeIndex, background, query, mode, prompt, proposal,
   }), [layers, imported, selectedId, selectedIds, formatIndex, paletteList, schemeIndex, background, query, mode, prompt, proposal]);
-  const previous = useRef(snapshot);
-  useEffect(() => {
-    if (!store || previous.current === snapshot) return;
-    previous.current = snapshot;
-    let current = true;
-    async function write() {
-      try {
-        await store!.save(snapshot, imported);
-        if (current) setSaveError('');
-      } catch {
-        if (current) setSaveError('Браузер не сохранил последние изменения. Можно скачать SVG.');
-      }
-    }
-    void write();
-    return () => { current = false; };
-  }, [store, snapshot, imported]);
+  const saveError = useDraftAutosave(store, snapshot, imported, dragging, storageError);
 
   useEffect(() => {
     const request = new AbortController();
@@ -292,7 +278,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
             const dx = x - origin.x, dy = y - origin.y;
             return current.map((layer) => ids.includes(layer.id) ? { ...layer, x: layer.x + dx, y: layer.y + dy } : layer);
           })} rotate={(id, rotation) => patchLayer(id, { rotation })}
-          resize={resizeScene} remove={deleteLayer} />
+          resize={resizeScene} remove={deleteLayer} onDragChange={setDragging} />
         {missingArtwork && <p className="status">Ожидаем исходники слоёв из библиотеки. Экспорт станет доступен, когда все объекты загружены.</p>}
         {saveError && <p className="status" role="alert">{saveError}</p>}
         {personalScene && <p className="status">В композиции есть ваши SVG. Они войдут в экспорт.</p>}

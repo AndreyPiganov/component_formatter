@@ -69,8 +69,8 @@ export function resizeLayers(layers: Layer[], before: Artboard, after: Artboard)
   const ratio = Math.min(after.width, after.height) / Math.min(before.width, before.height);
   return layers.map((layer) => ({
     ...layer,
-    x: layer.x * after.width / before.width,
-    y: layer.y * after.height / before.height,
+    x: after.width / 2 + (layer.x - before.width / 2) * ratio,
+    y: after.height / 2 + (layer.y - before.height / 2) * ratio,
     scale: layer.scale * ratio,
   }));
 }

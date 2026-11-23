@@ -14,6 +14,7 @@ interface CanvasProps {
   rotate: (id: string, angle: number) => void;
   resize: (id: string, scale: number, pivot: Point) => void;
   remove: (id: string) => void;
+  onDragChange: (active: boolean) => void;
 }
 
 interface Point { x: number; y: number }
@@ -31,7 +32,7 @@ const VectorObject = memo(function VectorObject({ asset, id, palette, colorSlots
   return <g aria-hidden="true" pointerEvents="none" dangerouslySetInnerHTML={{ __html: markup }} />;
 });
 
-export function Canvas({ artboard, layers, assets, palettes, selectedIds, select, move, rotate, resize, remove }: CanvasProps) {
+export function Canvas({ artboard, layers, assets, palettes, selectedIds, select, move, rotate, resize, remove, onDragChange }: CanvasProps) {
   const canvas = useRef<SVGSVGElement>(null);
   const drag = useRef<Gesture | null>(null);
   const boxStart = useRef<{ pointerId: number; point: Point } | null>(null);
@@ -90,6 +91,7 @@ export function Canvas({ artboard, layers, assets, palettes, selectedIds, select
     } else {
       drag.current = { ...pointer, kind, ids, offset };
     }
+    onDragChange(true);
     select(ids);
   }
 
@@ -160,7 +162,10 @@ export function Canvas({ artboard, layers, assets, palettes, selectedIds, select
       boxStart.current = null;
       setBox(null);
     }
-    if (drag.current?.pointerId === event.pointerId) drag.current = null;
+    if (drag.current?.pointerId === event.pointerId) {
+      drag.current = null;
+      onDragChange(false);
+    }
   }
 
   function onKey(event: KeyboardEvent<SVGSVGElement>) {
