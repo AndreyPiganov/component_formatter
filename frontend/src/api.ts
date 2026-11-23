@@ -1,10 +1,12 @@
 import { referenceSizedAssets } from './scene';
+import type { ScenePlacement } from '../../backend/src/common/svg/placement';
 import { parseSvg, type CatalogEntry, type Detail, type SvgAsset } from './svg';
 
 export type CompositionMode = 'names' | 'metaphor';
 
 interface Selection {
   ids: string[];
+  placements?: ScenePlacement[];
   unmatched: string[];
   method: 'names' | 'keywords' | 'ai';
 }

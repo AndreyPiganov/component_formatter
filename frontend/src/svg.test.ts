@@ -149,4 +149,24 @@ describe('size variants and palette', () => {
       expect(y + main.height * scale / 2).toBeLessThan(artboard.height);
     }
   });
+
+  it.each(formats)('preserves planned contact, rotations and depth at $name', (format) => {
+    const book = parseSvg(entry, fixture);
+    const pen = { ...book, id: 'pen', width: 15, height: 4 };
+    const lamp = { ...book, id: 'lamp', role: 'background' as const, width: 30, height: 55 };
+    const scene = arrangeObjects([book, pen, lamp], { ...format, background: 'transparent' }, [
+      { assetId: book.id, relativeTo: null, dx: 0, dy: 0, rotation: 0 },
+      { assetId: pen.id, relativeTo: book.id, dx: .5, dy: 0, rotation: 90 },
+      { assetId: lamp.id, relativeTo: book.id, dx: -.7, dy: -.6, rotation: -8 },
+    ]);
+    const [back, page, tool] = scene;
+    expect(scene.map(l => l.assetId)).toEqual(['lamp', 'book', 'pen']);
+    expect(back.rotation).toBe(-8);
+    expect(tool.rotation).toBe(90);
+    expect(tool.scale).toBe(page.scale);
+    expect(tool.x - page.x).toBeCloseTo(.5 * (book.width + pen.height) / 2 * page.scale);
+    expect(tool.y).toBe(page.y);
+    expect(back.y).toBeLessThan(page.y);
+    expect(back.x).toBeLessThan(page.x);
+  });
 });

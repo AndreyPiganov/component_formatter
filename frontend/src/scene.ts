@@ -1,4 +1,5 @@
 import { newId, type Artboard, type Detail, type Layer, type SvgAsset } from './svg';
+import type { ScenePlacement } from '../../backend/src/common/svg/placement';
 
 export const formats = [
   { name: '1000 × 1000 · Детальный', width: 1000, height: 1000, detail: 'detailed' },
@@ -107,8 +108,44 @@ function slots(count: number, artboard: Artboard): Slot[] {
   });
 }
 
-export function arrangeObjects(assets: SvgAsset[], artboard: Artboard): Layer[] {
+function arrangeScene(assets: SvgAsset[], artboard: Artboard, plan: ScenePlacement[]): Layer[] | undefined {
+  if (assets.length !== plan.length) return;
+  const positions = new Map<string, {
+    asset: SvgAsset; x: number; y: number; halfWidth: number; halfHeight: number; rotation: number;
+  }>();
+  for (const [index, asset] of assets.entries()) {
+    const { assetId, relativeTo, rotation, dx, dy } = plan[index];
+    const anchor = relativeTo === null ? undefined : positions.get(relativeTo);
+    if (assetId !== asset.id || (index > 0 && !anchor)) return;
+    const angle = rotation * Math.PI / 180;
+    const cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
+    const halfWidth = (asset.width * cos + asset.height * sin) / 2;
+    const halfHeight = (asset.width * sin + asset.height * cos) / 2;
+    const x = anchor ? anchor.x + dx * (anchor.halfWidth + halfWidth) : 0;
+    const y = anchor ? anchor.y + dy * (anchor.halfHeight + halfHeight) : 0;
+    positions.set(assetId, { asset, x, y, halfWidth, halfHeight, rotation });
+  }
+  const objects = Array.from(positions.values());
+  const left = Math.min(...objects.map(o => o.x - o.halfWidth));
+  const right = Math.max(...objects.map(o => o.x + o.halfWidth));
+  const top = Math.min(...objects.map(o => o.y - o.halfHeight));
+  const bottom = Math.max(...objects.map(o => o.y + o.halfHeight));
+  const scale = .84 * Math.min(artboard.width / (right - left), artboard.height / (bottom - top));
+  return objects.sort((a, b) => Number(a.asset.role === 'main') - Number(b.asset.role === 'main'))
+    .map(({ asset, x, y, rotation }) => ({
+      ...placeAsset(asset, artboard,
+        artboard.width / 2 + (x - (left + right) / 2) * scale,
+        artboard.height / 2 + (y - (top + bottom) / 2) * scale, scale),
+      rotation,
+    }));
+}
+
+export function arrangeObjects(assets: SvgAsset[], artboard: Artboard, plan?: ScenePlacement[]): Layer[] {
   if (!assets.length) return [];
+  if (plan) {
+    const scene = arrangeScene(assets, artboard, plan);
+    if (scene) return scene;
+  }
   const foreground = assets.filter((asset) => asset.role === 'main');
   const background = assets.filter((asset) => asset.role === 'background');
   const focus = foreground.length ? foreground : background;

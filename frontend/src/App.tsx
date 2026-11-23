@@ -227,7 +227,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
           'В библиотеке нет совпадений. Уточните заголовок или укажите названия объектов.');
         return;
       }
-      const scene = arrangeObjects(chosen, artboard);
+      const scene = arrangeObjects(chosen, artboard, selection.placements);
       const method = selection.method === 'ai' ? ' Подбор по смыслу.' :
         selection.method === 'keywords' ? ' Подбор по тегам.' : '';
       const unmatched = selection.unmatched.length ? ' Не добавлены: ' + selection.unmatched.join(', ') + '.' : '';
