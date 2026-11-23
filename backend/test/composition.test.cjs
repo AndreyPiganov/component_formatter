@@ -81,14 +81,16 @@ test('constrains model output to the catalog and falls back when an unknown ID i
   ]);
   const { schemes } = require('../dist/common/svg/palette');
   const styled = readCompositionRequest({ ...input, colorOptions: {
-    palettes: schemes, paints: { 'book-background': [0, 2], 'lamp-main': [3, 4] },
+    palettes: schemes, paints: { 'book-background': [0, 2], 'lamp-main': [3, 4, 7] },
   } });
   Object.assign(body, { schemeIndex: 2, background: 1 });
-  book.paintChanges = [{ from: 0, to: 5 }, { from: 2, to: 1 }];
-  lamp.paintChanges = [{ from: 4, to: 6 }, { from: 0, to: 7 }];
+  book.paintChanges = [{ from: 0, to: 5 }, { from: 2, to: 3 }];
+  lamp.paintChanges = [{ from: 4, to: 6 }, { from: 0, to: 7 }, { from: 7, to: 3 }];
   const colored = await service.select(styled);
   assert.deepEqual(colored.colors, { schemeIndex: 2, background: 1 });
-  assert.deepEqual(colored.placements.map(p => p.paintChanges), [[{ from: 2, to: 1 }], [{ from: 4, to: 6 }]]);
+  assert.deepEqual(colored.placements.map(p => p.paintChanges), [[{ from: 2, to: 3 }], [{ from: 4, to: 6 }]]);
+  book.paintChanges = [{ from: 0, to: 2 }];
+  assert.deepEqual((await service.select(styled)).placements[0].paintChanges, []);
   body.background = 7;
   const invalidCanvas = await service.select(styled);
   assert.equal(invalidCanvas.method, 'ai');

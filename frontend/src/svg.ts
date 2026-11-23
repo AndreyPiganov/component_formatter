@@ -1,3 +1,4 @@
+import { luminance } from '../../backend/src/common/svg/palette';
 import {
   checkSvgMarkup, localUrl, paintAttributes, parseStyle, parseViewport,
   svgNamespace, VectorDocumentCheck, xmlnsNamespace,
@@ -120,13 +121,6 @@ function parsePaint(value: string): { hex: string; alpha: string } | undefined {
 function collectPaint(colors: Set<string>, value: string) {
   const paint = parsePaint(value.replace(/\s*!important\s*$/i, ''));
   if (paint && paint.alpha !== '00') colors.add(paint.hex);
-}
-
-function luminance(hex: string) {
-  const rgb = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
-  const [red, green, blue] = rgb.map((value) => value <= 0.04045 ?
-    value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
 export function mapPalette(sources: string[], palette: string[]) {

@@ -54,3 +54,10 @@ export interface PaintChange {
   from: number;
   to: number;
 }
+
+export function luminance(hex: string) {
+  const rgb = [1, 3, 5].map(index => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
+  const [red, green, blue] = rgb.map(value => value <= 0.04045 ?
+    value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}

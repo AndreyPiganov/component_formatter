@@ -2,10 +2,27 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { LibraryCandidate } from '../../library/domain/library.types';
 import { AppConfigService } from '../../../config/app-config.service';
 import type { ScenePlacement } from '../../../common/svg/placement';
-import { schemes, type PaintChange, type SceneColorOptions, type SceneColors } from '../../../common/svg/palette';
+import { luminance, schemes, type PaintChange, type SceneColorOptions, type SceneColors, type Scheme } from '../../../common/svg/palette';
 
 function isSlot(value: unknown, length: number): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < length;
+}
+
+function readablePaints(changes: PaintChange[], sources: number[], scheme: Scheme, monochrome: boolean): PaintChange[] {
+  const paints = new Map(changes.filter(({ from, to }) => from !== to).map(({ from, to }) => [from, to]));
+  const light = [...scheme.background, ...scheme.objects].map(luminance);
+  const tone = (source: number) => light[paints.get(source) ?? source];
+  // Figma slot 7 holds paper and highlights, slot 3 holds ink and shadows.
+  if (sources.includes(7) && sources.includes(3)) {
+    if ((tone(7) + .05) / (tone(3) + .05) < 2.5) paints.delete(7);
+    if ((tone(7) + .05) / (tone(3) + .05) < 2.5) paints.delete(3);
+  }
+  if (monochrome && sources.length > 1) {
+    const contrast = (values: number[]) => (Math.max(...values) + .05) / (Math.min(...values) + .05);
+    const proposed = contrast(sources.map(tone));
+    if (proposed < 1.5 && proposed < contrast(sources.map(i => light[i]))) return [];
+  }
+  return Array.from(paints, ([from, to]) => ({ from, to }));
 }
 
 interface ResponseItem {
@@ -60,7 +77,8 @@ export class OpenAiClient {
             'выделить смысловой центр. from и to — номера слотов: 0–3 фоновые, 4–7 дополнительные. ' +
             'Исходные краски перечислены в sourcePalette. Целевые краски берутся из выбранной схемы. ' +
             'Холст и монохромные предметы используют только 0–3, цветные предметы — 0–7. ' +
-            'Сохраняй различимость контура и бликов, следи за контрастом с холстом. ' +
+            'Слот 3 исходника — тушь и тени, слот 7 — белая бумага и блики. Сохрани их светотень. ' +
+            'Веди взгляд цветным акцентом на главном предмете, отличай его от холста; фон поддерживает сюжет. ' +
             'Если слой уже подходит по цвету, верни для него пустой paintChanges.' : ''),
           ...body }),
       });
@@ -97,7 +115,8 @@ export class OpenAiClient {
       } } } : {};
       const answer = await request({
         input: [...input, ...output, { type: 'function_call_output', call_id: call.call_id,
-          output: JSON.stringify(colorOptions ? { catalog, sourcePalette: schemes[0], palettes: colorOptions.palettes } : catalog) }],
+          output: JSON.stringify(colorOptions ? { catalog, sourcePalette: [...schemes[0].background, ...schemes[0].objects],
+            palettes: colorOptions.palettes.map(({ name, background, objects }) => ({ name, slots: [...background, ...objects] })) } : catalog) }],
         tools: [tool], tool_choice: 'none',
         text: { format: { type: 'json_schema', name: 'selection', strict: true,
           schema: { type: 'object', additionalProperties: false, required: ['layers', ...Object.keys(colorFields)],
@@ -131,8 +150,10 @@ export class OpenAiClient {
         const placement: ScenePlacement = { assetId, relativeTo: anchor, dx, dy, rotation, depth };
         if (colors && colorOptions && Array.isArray(paintChanges)) {
           const count = assetId === variants.background ? 4 : 8;
-          placement.paintChanges = paintChanges.filter((change): change is PaintChange =>
-            change && isSlot(change.from, count) && colorOptions.paints[assetId]?.includes(change.from) && isSlot(change.to, count));
+          const sources = colorOptions.paints[assetId] ?? [];
+          const valid = paintChanges.filter((change): change is PaintChange =>
+            change && isSlot(change.from, count) && sources.includes(change.from) && isSlot(change.to, count));
+          placement.paintChanges = readablePaints(valid, sources, colorOptions.palettes[schemeIndex], count === 4);
         }
         return placement;
       });
