@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { assetPalette, parseScheme, sceneColorOptions, schemes } from './palette';
 import { arrangeObjects, assetsForLayers, formats, placeAsset, referenceSizedAssets, resizeLayers, scaleComposition, visibleAssets } from './scene';
+import { rotateSelection, selectionFrame } from './selection';
 import { exportSvg, parseSvg, renderAsset, type CatalogEntry } from './svg';
 
 const entry: CatalogEntry = {
@@ -12,6 +13,27 @@ const fixture = start + '<defs><clipPath id="clip"><rect width="60" height="20"/
   '<path d="M5 7L40 15Z" clip-path="url(#clip)" fill="#D7CDF580" stroke="#F9A3AA"/></svg>';
 
 describe('vector assets', () => {
+  it('rotates a mixed selection around its fixed center using the geometry at pointer-down', () => {
+    const asset = parseSvg(entry, fixture);
+    const assets = new Map([[asset.id, asset]]);
+    const first = { id: 'a', assetId: asset.id, x: 100, y: 100, scale: 1, rotation: 0 };
+    const second = { ...first, id: 'b', x: 180, rotation: 90, flipX: true };
+    const outside = { ...first, id: 'c', x: 300 };
+    const layers = [first, second, outside];
+    const ids = [second.id, first.id];
+    const frame = selectionFrame(layers, ids, assets)!;
+    expect([frame.x, frame.y]).toEqual([130, 100]);
+    const midway = rotateSelection(layers, frame, 45);
+    const rotated = rotateSelection(midway, frame, 90);
+    expect(rotated).toEqual([{ ...first, x: 130, y: 70, rotation: 90 },
+      { ...second, x: 130, y: 150, rotation: 180 }, outside]);
+    expect(rotated[2]).toBe(outside);
+    const next = selectionFrame(rotated, ids, assets)!;
+    expect(next.x).toBeCloseTo(frame.x);
+    expect(next.y).toBeCloseTo(frame.y);
+    expect(rotateSelection(rotated, next, 0)).toEqual(layers);
+  });
+
   it('preserves viewBox, path geometry and paint while isolating references between layers', () => {
     const asset = parseSvg(entry, fixture);
     const artboard = { width: 1000, height: 500, background: 'transparent' };

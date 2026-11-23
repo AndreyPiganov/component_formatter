@@ -4,6 +4,7 @@ import { LibraryPanel } from '../components/LibraryPanel';
 import { LayerInspector } from '../components/LayerInspector';
 import { NumberField } from '../components/NumberField';
 import { loadLibrary, selectObjects, type CompositionMode } from '../api/editor';
+import { rotateSelection, selectionFrame, type SelectionFrame } from '../model/selection';
 import { Canvas } from '../components/Canvas';
 import { assetPalette, parseScheme, sceneColorOptions, schemes, type Scheme } from '../model/palette';
 import { arrangeObjects, assetsForLayers, formats, initialScale, placeAsset, resizeLayers, scaleComposition, visibleAssets } from '../model/scene';
@@ -96,6 +97,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
   const personalScene = layers.some((layer) => personalIds.has(layer.assetId));
   const hasCatalog = [...available.keys()].some((id) => !personalIds.has(id));
   const selected = layers.find((layer) => layer.id === selectedId);
+  const frame = useMemo(() => selectionFrame(layers, selectedIds, sceneAssets), [layers, selectedIds, sceneAssets]);
   const selectedAsset = selected && sceneAssets.get(selected.assetId);
 
   const otherRole = selectedAsset?.componentId ? [...available.values()].find((asset) =>
@@ -128,6 +130,10 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
 
   function patchLayer(id: string, patch: Partial<Layer>) {
     setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, ...patch } : layer));
+  }
+
+  function rotateLayers(start: SelectionFrame, angle: number) {
+    setLayers(current => rotateSelection(current, start, angle));
   }
 
   function resizeScene(id: string, scale: number, pivot: { x: number; y: number }) {
@@ -271,13 +277,13 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
               { x: artboard.width / 2, y: artboard.height / 2 })} />}
         </div>
         <Canvas artboard={artboard} layers={layers} assets={sceneAssets} palettes={palettes}
-          selectedIds={selectedIds} select={setSelectedIds}
+          selectedIds={selectedIds} frame={frame} select={setSelectedIds}
           move={(ids, anchor, x, y) => setLayers((current) => {
             const origin = current.find((layer) => layer.id === anchor);
             if (!origin) return current;
             const dx = x - origin.x, dy = y - origin.y;
             return current.map((layer) => ids.includes(layer.id) ? { ...layer, x: layer.x + dx, y: layer.y + dy } : layer);
-          })} rotate={(id, rotation) => patchLayer(id, { rotation })}
+          })} rotate={rotateLayers}
           resize={resizeScene} remove={deleteLayer} onDragChange={setDragging} />
         {missingArtwork && <p className="status">Ожидаем исходники слоёв из библиотеки. Экспорт станет доступен, когда все объекты загружены.</p>}
         {saveError && <p className="status" role="alert">{saveError}</p>}
@@ -320,6 +326,8 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
           <div className="panel-title"><h2><Layers size={17} /> Слои</h2></div>
           {layers.length === 0 && <p className="muted">Слои появятся здесь после добавления объектов.</p>}
           {selectedIds.length > 1 && <p className="muted">Выбрано объектов: {selectedIds.length}</p>}
+          {frame && frame.members.size > 1 && <NumberField label="Угол группы, °" value={frame.rotation}
+            onChange={(angle) => rotateLayers(frame, angle)} />}
           <ul className="layers">
             {[...layers].reverse().map((layer) => <li key={layer.id}>
               <button aria-pressed={selectedIds.includes(layer.id)} onClick={() => selectOne(layer.id)}>

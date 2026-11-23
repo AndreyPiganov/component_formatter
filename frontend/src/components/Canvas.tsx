@@ -1,4 +1,5 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { selectionFrame, type SelectionFrame } from '../model/selection';
 import { CanvasViewport } from './CanvasViewport';
 import { Layers } from 'lucide-react';
 import { layerTransform, renderAsset, type Artboard, type Layer, type SvgAsset } from '../model/svg';
@@ -11,7 +12,8 @@ interface CanvasProps {
   selectedIds: string[];
   select: (ids: string[]) => void;
   move: (ids: string[], anchor: string, x: number, y: number) => void;
-  rotate: (id: string, angle: number) => void;
+  frame?: SelectionFrame;
+  rotate: (frame: SelectionFrame, angle: number) => void;
   resize: (id: string, scale: number, pivot: Point) => void;
   remove: (id: string) => void;
   onDragChange: (active: boolean) => void;
@@ -20,7 +22,7 @@ interface CanvasProps {
 interface Point { x: number; y: number }
 type Gesture = { id: string; pointerId: number } & (
   | { kind: 'move'; ids: string[]; offset: Point }
-  | { kind: 'rotate'; center: Point; initialAngle: number; startDirection: number | null }
+  | { kind: 'rotate'; frame: SelectionFrame; startDirection: number | null }
   | { kind: 'resize'; pivot: Point; diagonal: Point; initialScale: number }
 );
 
@@ -32,16 +34,16 @@ const VectorObject = memo(function VectorObject({ asset, id, palette, colorSlots
   return <g aria-hidden="true" pointerEvents="none" dangerouslySetInnerHTML={{ __html: markup }} />;
 });
 
-export function Canvas({ artboard, layers, assets, palettes, selectedIds, select, move, rotate, resize, remove, onDragChange }: CanvasProps) {
+export function Canvas({ artboard, layers, assets, palettes, selectedIds, frame, select, move, rotate, resize, remove, onDragChange }: CanvasProps) {
   const canvas = useRef<SVGSVGElement>(null);
   const drag = useRef<Gesture | null>(null);
   const boxStart = useRef<{ pointerId: number; point: Point } | null>(null);
   const [box, setBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
-  const selected = layers.find((layer) => selectedIds.length === 1 && layer.id === selectedIds[0]);
-  const asset = selected && assets.get(selected.assetId);
-  const halfWidth = selected && asset ? selected.scale * asset.width / 2 : 0;
-  const halfHeight = selected && asset ? selected.scale * asset.height / 2 : 0;
+  const handleLayer = frame && frame.members.values().next().value;
+  const group = (frame?.members.size ?? 0) > 1;
+  const halfWidth = (frame?.width ?? 0) / 2;
+  const halfHeight = (frame?.height ?? 0) / 2;
   const [pixel, setPixel] = useState(1);
   useLayoutEffect(() => {
     const svg = canvas.current;
@@ -72,13 +74,16 @@ export function Canvas({ artboard, layers, assets, palettes, selectedIds, select
       select(selectedIds.includes(layer.id) ? selectedIds.filter((id) => id !== layer.id) : [...selectedIds, layer.id]);
       return;
     }
-    canvas.current.setPointerCapture(event.pointerId);
-    const ids = kind === 'move' && selectedIds.includes(layer.id) ? selectedIds : [layer.id];
+    const alreadySelected = selectedIds.includes(layer.id);
+    const ids = alreadySelected ? selectedIds : [layer.id];
     const pointer = { id: layer.id, pointerId: event.pointerId };
     const offset = { x: point.x - layer.x, y: point.y - layer.y };
     if (kind === 'rotate') {
-      drag.current = { ...pointer, kind, center: { x: layer.x, y: layer.y }, initialAngle: layer.rotation,
-        startDirection: Math.hypot(offset.x, offset.y) > pixel ? Math.atan2(offset.y, offset.x) : null };
+      const target = alreadySelected ? frame : selectionFrame([layer], ids, assets);
+      if (!target) return;
+      const dx = point.x - target.x, dy = point.y - target.y;
+      drag.current = { ...pointer, kind, frame: target,
+        startDirection: Math.hypot(dx, dy) > pixel ? Math.atan2(dy, dx) : null };
     } else if (kind === 'resize') {
       // Keep the diagonally opposite corner fixed, even when the object is rotated.
       const radians = layer.rotation * Math.PI / 180;
@@ -91,6 +96,7 @@ export function Canvas({ artboard, layers, assets, palettes, selectedIds, select
     } else {
       drag.current = { ...pointer, kind, ids, offset };
     }
+    canvas.current.setPointerCapture(event.pointerId);
     onDragChange(true);
     select(ids);
   }
@@ -124,12 +130,12 @@ export function Canvas({ artboard, layers, assets, palettes, selectedIds, select
     if (active.kind === 'move') {
       move(active.ids, active.id, Math.round(point.x - active.offset.x), Math.round(point.y - active.offset.y));
     } else if (active.kind === 'rotate') {
-      const dx = point.x - active.center.x, dy = point.y - active.center.y;
+      const dx = point.x - active.frame.x, dy = point.y - active.frame.y;
       if (Math.hypot(dx, dy) < pixel) return;
       const direction = Math.atan2(dy, dx);
       active.startDirection ??= direction;
-      const angle = active.initialAngle + (direction - active.startDirection) * 180 / Math.PI;
-      rotate(active.id, ((Math.round(angle) % 360) + 360) % 360);
+      const angle = active.frame.rotation + (direction - active.startDirection) * 180 / Math.PI;
+      rotate(active.frame, Math.round(angle));
     } else {
       const { diagonal, pivot } = active;
       const lengthSquared = diagonal.x ** 2 + diagonal.y ** 2;
@@ -204,22 +210,24 @@ export function Canvas({ artboard, layers, assets, palettes, selectedIds, select
             fill="transparent" vectorEffect="non-scaling-stroke" />
         </g>;
       })}
-      {selected && asset && <g className="layer-controls"
-        transform={'translate(' + selected.x + ' ' + selected.y + ') rotate(' + selected.rotation + ')'}>
+      {frame && handleLayer && <g className="layer-controls"
+        transform={'translate(' + frame.x + ' ' + frame.y + ') rotate(' + frame.rotation + ')'}>
+        {group && <rect x={-halfWidth} y={-halfHeight} width={frame.width} height={frame.height}
+          fill="none" stroke="#683ae4" vectorEffect="non-scaling-stroke" pointerEvents="none" />}
         <line y1={-halfHeight} y2={-halfHeight - 22 * pixel} stroke="#683ae4" vectorEffect="non-scaling-stroke" />
         <g transform={'translate(0 ' + (-halfHeight - 22 * pixel) + ')'} className="rotate-handle"
-          aria-label="Повернуть объект мышью" onPointerDown={(event) => start(event, selected, 'rotate')}>
-          <title>Повернуть объект</title>
+          aria-label={group ? 'Повернуть группу мышью' : 'Повернуть объект мышью'} onPointerDown={(event) => start(event, handleLayer, 'rotate')}>
+          <title>{group ? 'Повернуть группу' : 'Повернуть объект'}</title>
           <circle r={12 * pixel} fill="transparent" />
           <circle r={6 * pixel} className="handle-mark" vectorEffect="non-scaling-stroke" />
         </g>
-        <g transform={'translate(' + halfWidth + ' ' + halfHeight + ')'} className="scale-handle"
-          aria-label="Изменить размер композиции мышью" onPointerDown={(event) => start(event, selected, 'resize')}>
+        {!group && <g transform={'translate(' + halfWidth + ' ' + halfHeight + ')'} className="scale-handle"
+          aria-label="Изменить размер композиции мышью" onPointerDown={(event) => start(event, handleLayer, 'resize')}>
           <title>Изменить размер всей композиции</title>
           <circle r={12 * pixel} fill="transparent" />
           <rect x={-5 * pixel} y={-5 * pixel} width={10 * pixel} height={10 * pixel}
             className="handle-mark" vectorEffect="non-scaling-stroke" />
-        </g>
+        </g>}
       </g>}
       {box && <rect {...box} fill="#683ae41a" stroke="#683ae4" vectorEffect="non-scaling-stroke" pointerEvents="none" />}
     </svg>
