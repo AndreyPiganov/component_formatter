@@ -1,5 +1,6 @@
 import { newId, type Artboard, type Detail, type Layer, type SvgAsset } from './svg';
 import type { ScenePlacement } from '../../backend/src/common/svg/placement';
+import { schemeColors, schemes } from './palette';
 
 export const formats = [
   { name: '1000 × 1000 · Детальный', width: 1000, height: 1000, detail: 'detailed' },
@@ -116,6 +117,7 @@ interface PlacedObject {
   halfHeight: number;
   rotation: number;
   depth: number;
+  colorSlots?: Layer['colorSlots'];
 }
 
 function coveredFraction(rear: PlacedObject, front: PlacedObject, x: number, y: number) {
@@ -159,7 +161,10 @@ function arrangeScene(assets: SvgAsset[], artboard: Artboard, plan: ScenePlaceme
     const diagonal = distance ? Math.max(Math.abs(dx), Math.abs(dy)) / distance : 1;
     const x = anchor ? anchor.x + dx * diagonal * (anchor.halfWidth + halfWidth) : 0;
     const y = anchor ? anchor.y + dy * diagonal * (anchor.halfHeight + halfHeight) : 0;
-    positions.set(assetId, { asset, x, y, halfWidth, halfHeight, rotation, depth });
+    const changes = plan[index].paintChanges;
+    const base = schemeColors(schemes[0], asset.role);
+    const colorSlots = changes?.length ? Object.fromEntries(changes.map(({ from, to }) => [base[from], base[to]])) : undefined;
+    positions.set(assetId, { asset, x, y, halfWidth, halfHeight, rotation, depth, colorSlots });
   }
   const objects = Array.from(positions.values())
     .sort((a, b) => Number(a.asset.role === 'main') - Number(b.asset.role === 'main') || a.depth - b.depth);
@@ -169,11 +174,11 @@ function arrangeScene(assets: SvgAsset[], artboard: Artboard, plan: ScenePlaceme
   const top = Math.min(...objects.map(o => o.y - o.halfHeight));
   const bottom = Math.max(...objects.map(o => o.y + o.halfHeight));
   const scale = .84 * Math.min(artboard.width / (right - left), artboard.height / (bottom - top));
-  return objects.map(({ asset, x, y, rotation }) => ({
+  return objects.map(({ asset, x, y, rotation, colorSlots }) => ({
     ...placeAsset(asset, artboard,
       artboard.width / 2 + (x - (left + right) / 2) * scale,
       artboard.height / 2 + (y - (top + bottom) / 2) * scale, scale),
-    rotation,
+    rotation, colorSlots,
   }));
 }
 

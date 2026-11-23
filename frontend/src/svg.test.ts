@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { assetPalette, parseScheme, schemes } from './palette';
+import { assetPalette, parseScheme, sceneColorOptions, schemes } from './palette';
 import { arrangeObjects, assetsForLayers, formats, placeAsset, referenceSizedAssets, resizeLayers, scaleComposition, visibleAssets } from './scene';
 import { exportSvg, parseSvg, renderAsset, type CatalogEntry } from './svg';
 
@@ -77,6 +77,20 @@ describe('vector assets', () => {
 });
 
 describe('size variants and palette', () => {
+  it('exports AI paint substitutions in the selected scheme and preserves source opacity', () => {
+    const book = parseSvg(entry, fixture);
+    const scheme = schemes[2];
+    const board = { ...formats[0], background: scheme.background[1] };
+    const options = sceneColorOptions(schemes, [book]);
+    expect(options.paints.book).toContain(0);
+    expect(options.paints.book).not.toContain(4);
+    const layers = arrangeObjects([book], board, [{ assetId: book.id, relativeTo: null, dx: 0, dy: 0, rotation: 0,
+      paintChanges: [{ from: 0, to: 5 }] }]);
+    const output = exportSvg(board, layers, new Map([[book.id, book]]), new Map([[book.id, assetPalette(book, scheme)]]));
+    const xml = new DOMParser().parseFromString(output, 'image/svg+xml');
+    expect(xml.querySelector('rect')?.getAttribute('fill')).toBe(board.background);
+    expect(xml.querySelector('path')?.getAttribute('fill')).toBe(scheme.objects[1] + '80');
+  });
   it('switches detail variants and adjusts geometry relative to the artboard', () => {
     const detailed = parseSvg(entry, fixture);
     const simple = parseSvg({ ...entry, detail: 'simple' }, fixture.replace('4 6 60 20', '2 3 30 10'));

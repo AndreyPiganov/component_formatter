@@ -28,12 +28,17 @@ it.each([false, true])('keeps manual edits until the user chooses the pending co
     });
     await act(async () => { container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true })); });
     await act(async () => { container.querySelector<HTMLButtonElement>('.asset-card')!.click(); });
-    await act(async () => { resolveSelection({ ids: [asset.id, asset.id], method: 'names', unmatched: [] }); });
+    await act(async () => { resolveSelection({ ids: [asset.id, asset.id], method: 'ai', unmatched: [],
+      colors: { schemeIndex: 1, background: 2 } }); });
     const layerCount = () => container.querySelectorAll('g[data-layer]').length;
     expect(layerCount()).toBe(1);
+    const palette = container.querySelector<HTMLSelectElement>('[aria-label="Цветовая схема"]')!;
+    expect(palette.value).toBe('0');
     const label = apply ? 'Заменить сцену' : 'Оставить мою';
     await act(async () => { Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label)!.click(); });
     expect(layerCount()).toBe(apply ? 2 : 1);
+    expect(palette.value).toBe(apply ? '1' : '0');
+    if (apply) expect(container.querySelector('[aria-label="Фон #d27532"]')?.getAttribute('aria-pressed')).toBe('true');
   } finally {
     await act(async () => root.unmount());
     container.remove();

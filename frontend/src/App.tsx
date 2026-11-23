@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { loadLibrary, selectObjects, type CompositionMode } from './api';
 import { Canvas } from './Canvas';
-import { assetPalette, parseScheme, schemeColors, schemes, type Scheme } from './palette';
+import { assetPalette, parseScheme, sceneColorOptions, schemeColors, schemes, type Scheme } from './palette';
 import { arrangeObjects, assetsForLayers, formats, initialScale, placeAsset, resizeLayers, scaleComposition, visibleAssets } from './scene';
 import { exportSvg, maxSvgBytes, newId, parseSvg, type Layer, type SvgAsset } from './svg';
 
@@ -35,7 +35,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
   const [libraryStatus, setLibraryStatus] = useState('Загрузка библиотеки…');
   const [layers, updateLayers] = useState<Layer[]>(draft?.layers ?? []);
   const revision = useRef(0);
-  const [proposal, setProposal] = useState<{ layers: Layer[]; message: string } | null>(draft?.proposal ?? null);
+  const [proposal, setProposal] = useState<Draft['proposal']>(draft?.proposal ?? null);
 
   function setLayers(update: Layer[] | ((current: Layer[]) => Layer[])) {
     revision.current++;
@@ -149,6 +149,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
     try {
       if (file.size > 16 * 1024) throw new Error('Максимальный размер палитры — 16 КБ.');
       const custom = parseScheme(await file.text());
+      revision.current++;
       setPaletteList([...paletteList, custom]);
       setSchemeIndex(paletteList.length);
       setStatus('Палитра «' + custom.name + '» применена.');
@@ -209,6 +210,17 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
     setFormatIndex(index);
   }
 
+  function applyScene(scene: NonNullable<Draft['proposal']>) {
+    setLayers(scene.layers);
+    if (scene.colors) {
+      setSchemeIndex(scene.colors.schemeIndex);
+      setBackground(scene.colors.background);
+    }
+    selectOne(null);
+    setStatus(scene.message);
+    setProposal(null);
+  }
+
   async function compose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (building || !prompt.trim() || !hasCatalog) return;
@@ -217,7 +229,10 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
     setBuilding(true);
     setStatus('');
     try {
-      const selection = await selectObjects(mode, prompt, format.detail);
+      const colorOptions = mode === 'metaphor' && scheme
+        ? sceneColorOptions(paletteList, [...available.values()].filter(asset => !personalIds.has(asset.id)))
+        : undefined;
+      const selection = await selectObjects(mode, prompt, format.detail, colorOptions);
       const chosen = selection.ids.flatMap((id) => {
         const asset = available.get(id);
         return asset ? [asset] : [];
@@ -232,12 +247,14 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
         selection.method === 'keywords' ? ' Подбор по тегам.' : '';
       const unmatched = selection.unmatched.length ? ' Не добавлены: ' + selection.unmatched.join(', ') + '.' : '';
       const message = 'Добавлено объектов: ' + chosen.length + '.' + method + unmatched;
-      if (revision.current === startedAt) {
-        setLayers(scene);
-        selectOne(null);
-        setStatus(message);
-      } else {
-        setProposal({ layers: scene, message });
+      const colors = selection.colors && {
+        schemeIndex: selection.colors.schemeIndex,
+        background: background === 'transparent' ? background : selection.colors.background,
+      } as const;
+      const result = { layers: scene, message, colors };
+      if (revision.current === startedAt) applyScene(result);
+      else {
+        setProposal(result);
         setStatus('');
       }
     } catch (error) {
@@ -341,12 +358,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
           {' «' + retained.join('», «') + '»'}. На холсте сохранена прежняя детализация.</p>}
         {proposal && <div className="status" role="status">
           Вы изменили сцену во время подбора. Заменить её собранной композицией?
-          {' '}<button className="button secondary" onClick={() => {
-            setLayers(proposal.layers);
-            selectOne(null);
-            setStatus(proposal.message);
-            setProposal(null);
-          }}>Заменить сцену</button>
+          {' '}<button className="button secondary" onClick={() => applyScene(proposal)}>Заменить сцену</button>
           {' '}<button className="button secondary" onClick={() => setProposal(null)}>Оставить мою</button>
         </div>}
         {status && <output className="status" aria-live="polite">{status}</output>}
@@ -361,7 +373,7 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
             <input type="file" accept=".json,application/json" hidden ref={paletteUpload} onChange={importPalette} />
           </div>
           <select aria-label="Цветовая схема" value={schemeIndex}
-            onChange={(event) => setSchemeIndex(Number(event.target.value))}>
+            onChange={(event) => { revision.current++; setSchemeIndex(Number(event.target.value)); }}>
             {paletteList.map((item, index) => <option key={index} value={index}>{item.name}</option>)}
             <option value={-1}>Исходные цвета</option>
           </select>
@@ -370,9 +382,9 @@ export default function App({ store, draft, importedFiles, storageError = '' }: 
             {backgroundColors.map((color, index) => <button type="button" key={index}
               className="swatch" style={{ backgroundColor: color }}
               aria-label={'Фон ' + color} aria-pressed={background === index}
-              onClick={() => setBackground(index)} />)}
+              onClick={() => { revision.current++; setBackground(index); }} />)}
             <button type="button" className="swatch checker" aria-label="Прозрачный фон"
-              aria-pressed={background === 'transparent'} onClick={() => setBackground('transparent')} />
+              aria-pressed={background === 'transparent'} onClick={() => { revision.current++; setBackground('transparent'); }} />
           </fieldset>
         </section>
 

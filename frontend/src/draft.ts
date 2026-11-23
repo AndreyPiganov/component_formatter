@@ -17,7 +17,7 @@ export interface Draft {
   query: string;
   mode: CompositionMode;
   prompt: string;
-  proposal: { layers: Layer[]; message: string } | null;
+  proposal: { layers: Layer[]; message: string; colors?: { schemeIndex: number; background: number | 'transparent' } } | null;
 }
 
 function result<T>(request: IDBRequest<T>): Promise<T> {
