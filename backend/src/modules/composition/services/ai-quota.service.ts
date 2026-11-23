@@ -1,11 +1,11 @@
 /* AI usage quotas are suspended for the demo.
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { AppConfigService } from '../../../config/app-config.service';
+import { appConfig, type AppConfig } from '../../../config/app.config';
 import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
 export class AiQuotaService {
-  constructor(private readonly prisma: PrismaService, private readonly config: AppConfigService) {}
+  constructor(private readonly prisma: PrismaService, @Inject(appConfig.KEY) private readonly config: AppConfig) {}
 
   async reserve() {
     const limits = this.config.aiQuota;

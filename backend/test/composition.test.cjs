@@ -1,6 +1,5 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { AppConfigService } = require('../dist/config/app-config.service');
 const { OpenAiClient } = require('../dist/modules/composition/clients/open-ai.client');
 const { readCompositionRequest } = require('../dist/modules/composition/dto/select-composition.dto');
 const { CompositionService } = require('../dist/modules/composition/services/composition.service');
@@ -41,12 +40,6 @@ test('validates ID uniqueness, text and mode before asking any provider', () => 
 });
 
 test('constrains model output to the catalog and falls back when an unknown ID is returned', async (context) => {
-  const previous = process.env.OPENAI_API_KEY;
-  process.env.OPENAI_API_KEY = 'test-key';
-  context.after(() => {
-    if (previous === undefined) delete process.env.OPENAI_API_KEY;
-    else process.env.OPENAI_API_KEY = previous;
-  });
   const book = { id: 'book', role: 'main', relativeTo: null, dx: 0, dy: 0, rotation: -8, depth: 2 };
   const lamp = { id: 'lamp', role: 'main', relativeTo: 'book', dx: -.6, dy: -.7, rotation: 5, depth: 1 };
   const body = { layers: [book, lamp] };
@@ -69,7 +62,7 @@ test('constrains model output to the catalog and falls back when an unknown ID i
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(body) }] }],
     }));
   });
-  const service = new CompositionService(new OpenAiClient(new AppConfigService()), catalog);
+  const service = new CompositionService(new OpenAiClient({ openAiApiKey: 'test-key', openAiModel: 'test-model' }), catalog);
   const input = readCompositionRequest({ mode: 'metaphor', text: 'свет', detail: 'simple' });
   const first = await service.select(input);
   assert.equal(first.method, 'ai');

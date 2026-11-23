@@ -1,16 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { validateCatalogSvg } from './validate-catalog-svg';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { readCatalogComponent } from '../../../common/domain/catalog-component';
-import { AppConfigService } from '../../../config/app-config.service';
+import { appConfig, type AppConfig } from '../../../config/app.config';
 import type { LibraryCatalog } from '../domain/library.types';
 
 @Injectable()
 export class FileCatalogSource {
   private readonly logger = new Logger(FileCatalogSource.name);
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(@Inject(appConfig.KEY) private readonly config: AppConfig) {}
 
   async readCatalog(): Promise<LibraryCatalog | undefined> {
     const directory = resolve(this.config.assetsDir);

@@ -1,7 +1,7 @@
 // import { AiQuotaService } from '../services/ai-quota.service';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { LibraryCandidate } from '../../library/domain/library.types';
-import { AppConfigService } from '../../../config/app-config.service';
+import { appConfig, type AppConfig } from '../../../config/app.config';
 import type { ScenePlacement } from '../../../common/svg/placement';
 import { luminance, schemes, type PaintChange, type SceneColorOptions, type SceneColors, type Scheme } from '../../../common/svg/palette';
 
@@ -39,7 +39,7 @@ export class OpenAiClient {
   private readonly logger = new Logger(OpenAiClient.name);
 
   constructor(
-    private readonly config: AppConfigService,
+    @Inject(appConfig.KEY) private readonly config: AppConfig,
     // private readonly quota: AiQuotaService,
   ) {}
 
