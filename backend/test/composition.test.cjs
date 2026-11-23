@@ -59,7 +59,8 @@ test('constrains model output to the catalog and falls back when an unknown ID i
     const result = input.input.at(-1);
     assert.equal(result.type, 'function_call_output');
     assert.equal(result.call_id, 'call-1');
-    assert.deepEqual(JSON.parse(result.output).map(({ id, roles }) => ({ id, roles })), [
+    const toolResult = JSON.parse(result.output);
+    assert.deepEqual((toolResult.catalog ?? toolResult).map(({ id, roles }) => ({ id, roles })), [
       { id: 'book', roles: ['main', 'background'] }, { id: 'lamp', roles: ['main'] },
     ]);
     assert.deepEqual(input.text.format.schema.properties.layers.items.properties.id.enum, ['book', 'lamp']);
@@ -78,6 +79,21 @@ test('constrains model output to the catalog and falls back when an unknown ID i
     { assetId: 'book-background', relativeTo: null, dx: 0, dy: 0, rotation: -8, depth: 2 },
     { assetId: 'lamp-main', relativeTo: 'book-background', dx: -.6, dy: -.7, rotation: 5, depth: 1 },
   ]);
+  const { schemes } = require('../dist/common/svg/palette');
+  const styled = readCompositionRequest({ ...input, colorOptions: {
+    palettes: schemes, paints: { 'book-background': [0, 2], 'lamp-main': [3, 4] },
+  } });
+  Object.assign(body, { schemeIndex: 2, background: 1 });
+  book.paintChanges = [{ from: 0, to: 5 }, { from: 2, to: 1 }];
+  lamp.paintChanges = [{ from: 4, to: 6 }, { from: 0, to: 7 }];
+  const colored = await service.select(styled);
+  assert.deepEqual(colored.colors, { schemeIndex: 2, background: 1 });
+  assert.deepEqual(colored.placements.map(p => p.paintChanges), [[{ from: 2, to: 1 }], [{ from: 4, to: 6 }]]);
+  body.background = 7;
+  const invalidCanvas = await service.select(styled);
+  assert.equal(invalidCanvas.method, 'ai');
+  assert.equal(invalidCanvas.colors, undefined);
+  assert.equal(invalidCanvas.placements[0].paintChanges, undefined);
   for (const invalid of [{ id: 'invented' }, { relativeTo: 'lamp' }, { dx: 2 }, { id: 'book' }, { depth: 8 }]) {
     body.layers = [book, { ...lamp, ...invalid }];
     assert.deepEqual(await service.select(input), { method: 'keywords', ids: ['lamp-main'], unmatched: [] });
@@ -110,7 +126,7 @@ test('builds a workspace scene with an unavailable provider or a single matching
     { id: 'pen', name: 'Ручка', tags: ['письмо'], role: 'main' },
     { id: 'coin', name: 'Монета', tags: ['монета'], role: 'main' },
   ] };
-  for (const answer of [undefined, [{ assetId: 'lamp-main', relativeTo: null, dx: 0, dy: 0, rotation: 0 }]]) {
+  for (const answer of [undefined, { placements: [{ assetId: 'lamp-main', relativeTo: null, dx: 0, dy: 0, rotation: 0 }] }]) {
     const service = new CompositionService({ select: async () => answer }, library);
     const result = await service.select({ mode: 'metaphor', text: 'Мой рабочий стол', detail: 'simple' });
     assert.deepEqual(new Set(result.ids), new Set(['lamp-main', 'folder', 'pen']));

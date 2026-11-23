@@ -1,3 +1,5 @@
+import type { PaintChange } from './palette';
+
 // A unit offset along one axis places the rotated bounds edge to edge.
 // Diagonal offsets follow an isometric footprint to allow for empty SVG corners.
 export interface ScenePlacement {
@@ -7,4 +9,5 @@ export interface ScenePlacement {
   dy: number;
   rotation: number;
   depth?: number;
+  paintChanges?: PaintChange[];
 }

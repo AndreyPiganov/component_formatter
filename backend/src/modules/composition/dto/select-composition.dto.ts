@@ -1,10 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { readCatalogComponent } from '../../../common/domain/catalog-component';
+import { readScheme, type SceneColorOptions } from '../../../common/svg/palette';
 import type { CompositionRequest } from '../domain/composition.types';
 
 export function readCompositionRequest(value: unknown): CompositionRequest {
   if (!value || typeof value !== 'object') throw new BadRequestException('Ожидается JSON-запрос.');
-  const { mode, text, detail, candidates } = value as Partial<CompositionRequest> & { candidates?: unknown };
+  const { mode, text, detail, candidates, colorOptions } = value as Partial<CompositionRequest> & { candidates?: unknown };
   if (mode !== 'names' && mode !== 'metaphor') throw new BadRequestException('Неизвестный режим.');
   if (typeof text !== 'string' || !text.trim() || text.length > 400) {
     throw new BadRequestException('Запрос должен содержать от 1 до 400 символов.');
@@ -26,5 +27,22 @@ export function readCompositionRequest(value: unknown): CompositionRequest {
     return { mode, text: text.trim(), detail, allowedIds: [...ids] };
   }
   if (!detail) throw new BadRequestException('Укажите детализацию холста.');
+  if (mode === 'metaphor' && colorOptions !== undefined) {
+    return { mode, text: text.trim(), detail, colorOptions: readColorOptions(colorOptions) };
+  }
   return { mode, text: text.trim(), detail };
+}
+
+function readColorOptions(options: SceneColorOptions): SceneColorOptions {
+  try {
+    if (!Array.isArray(options.palettes) || !options.palettes.length || !options.paints ||
+        typeof options.paints !== 'object' || Array.isArray(options.paints)) throw new Error();
+    for (const slots of Object.values(options.paints)) {
+      if (!Array.isArray(slots) || slots.length > 8 ||
+          !slots.every(i => Number.isInteger(i) && i >= 0 && i < 8)) throw new Error();
+    }
+    return { palettes: options.palettes.map(readScheme), paints: options.paints };
+  } catch {
+    throw new BadRequestException('Некорректные палитры или цвета SVG.');
+  }
 }

@@ -13,9 +13,9 @@ export class CompositionService {
     const candidates = await this.library.listCandidates(detail, allowedIds);
     if (mode === 'names') return selectByNames(text, candidates);
     if (!candidates.length) return { ids: [], unmatched: [], method: 'keywords' };
-    const placements = await this.openAi.select(text, candidates);
-    const ai: Selection | undefined = placements && {
-      ids: placements.map(({ assetId }) => assetId), placements, unmatched: [], method: 'ai',
+    const plan = await this.openAi.select(text, candidates, request.colorOptions);
+    const ai: Selection | undefined = plan && {
+      ...plan, ids: plan.placements.map(({ assetId }) => assetId), unmatched: [], method: 'ai',
     };
     const tags = sceneTags(text);
     if (ai && (ai.ids.length !== 1 || !tags.length)) return ai;

@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { LibraryCandidate } from '../../library/domain/library.types';
 import { AppConfigService } from '../../../config/app-config.service';
 import type { ScenePlacement } from '../../../common/svg/placement';
+import { schemes, type PaintChange, type SceneColorOptions, type SceneColors } from '../../../common/svg/palette';
+
+function isSlot(value: unknown, length: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < length;
+}
 
 interface ResponseItem {
   type: string;
@@ -17,7 +22,8 @@ export class OpenAiClient {
 
   constructor(private readonly config: AppConfigService) {}
 
-  async select(text: string, candidates: LibraryCandidate[]): Promise<ScenePlacement[] | undefined> {
+  async select(text: string, candidates: LibraryCandidate[], colorOptions?: SceneColorOptions):
+      Promise<{ placements: ScenePlacement[]; colors?: SceneColors } | undefined> {
     const key = this.config.openAiApiKey;
     if (!key || !candidates.length) return;
     const subjects = new Map<string, {
@@ -48,7 +54,14 @@ export class OpenAiClient {
             'Проверь силуэты: понятен ли зрителю глагол в заголовке и виден ли каждый выбранный предмет? ' +
             'Фон рисуется позади цветных предметов. Внутри роли depth задаёт порядок от дальнего (0) до ближнего (4) ' +
             'независимо от опоры. Если один предмет входит в другой, покажи часть первого из-за края второго. ' +
-            'При отсутствии подходящих предметов верни пустой список.',
+            'При отсутствии подходящих предметов верни пустой список.' + (colorOptions ?
+            ' Продумай колорит вместе с действием. Выбери схему и цвет холста из palettes по настроению ' +
+            'и пожеланиям заголовка. Для каждого слоя выбери, какие из его sourceSlots перекрасить, чтобы ' +
+            'выделить смысловой центр. from и to — номера слотов: 0–3 фоновые, 4–7 дополнительные. ' +
+            'Исходные краски перечислены в sourcePalette. Целевые краски берутся из выбранной схемы. ' +
+            'Холст и монохромные предметы используют только 0–3, цветные предметы — 0–7. ' +
+            'Сохраняй различимость контура и бликов, следи за контрастом с холстом. ' +
+            'Если слой уже подходит по цвету, верни для него пустой paintChanges.' : ''),
           ...body }),
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -67,28 +80,43 @@ export class OpenAiClient {
       const call = calls[0];
       if (calls.length !== 1 || call.name !== tool.name || !call.call_id ||
           JSON.stringify(JSON.parse(call.arguments ?? 'null')) !== '{}') throw new Error('Недопустимый вызов инструмента');
-      const catalog = Array.from(subjects.values(), ({ id, name, tags, variants }) =>
-        ({ id, name, tags, roles: Object.keys(variants) }));
+      const catalog = Array.from(subjects.values(), ({ id, name, tags, variants }) => ({
+        id, name, tags, roles: Object.keys(variants),
+        ...(colorOptions && { sourceSlots: Object.fromEntries(Object.entries(variants)
+          .map(([role, variant]) => [role, colorOptions.paints[variant] ?? []])) }),
+      }));
       const idType = { type: 'string', enum: catalog.map(({ id }) => id) };
       const offset = { type: 'number', minimum: -1.5, maximum: 1.5 };
+      const slot = { type: 'integer', minimum: 0, maximum: 7 };
+      const colorFields = colorOptions ? {
+        schemeIndex: { type: 'integer', minimum: 0, maximum: colorOptions.palettes.length - 1 },
+        background: { type: 'integer', minimum: 0, maximum: 3 },
+      } : {};
+      const paintFields = colorOptions ? { paintChanges: { type: 'array', maxItems: 8, items: {
+        type: 'object', additionalProperties: false, required: ['from', 'to'], properties: { from: slot, to: slot },
+      } } } : {};
       const answer = await request({
-        input: [...input, ...output, { type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(catalog) }],
+        input: [...input, ...output, { type: 'function_call_output', call_id: call.call_id,
+          output: JSON.stringify(colorOptions ? { catalog, sourcePalette: schemes[0], palettes: colorOptions.palettes } : catalog) }],
         tools: [tool], tool_choice: 'none',
         text: { format: { type: 'json_schema', name: 'selection', strict: true,
-          schema: { type: 'object', additionalProperties: false, required: ['layers'],
-            properties: { layers: { type: 'array', maxItems: 5, items: {
-              type: 'object', additionalProperties: false, required: ['id', 'role', 'relativeTo', 'dx', 'dy', 'rotation', 'depth'],
+          schema: { type: 'object', additionalProperties: false, required: ['layers', ...Object.keys(colorFields)],
+            properties: { ...colorFields, layers: { type: 'array', maxItems: 5, items: {
+              type: 'object', additionalProperties: false,
+              required: ['id', 'role', 'relativeTo', 'dx', 'dy', 'rotation', 'depth', ...Object.keys(paintFields)],
               properties: { id: idType, role: { type: 'string', enum: ['main', 'background'] },
                 relativeTo: { anyOf: [idType, { type: 'null' }] }, dx: offset, dy: offset,
                 rotation: { type: 'number', minimum: -180, maximum: 180 },
-                depth: { type: 'integer', minimum: 0, maximum: 4 } },
+                depth: { type: 'integer', minimum: 0, maximum: 4 }, ...paintFields },
             } } } } } },
       });
       const content = answer.flatMap((item) => item.content ?? []).find((item) => item.type === 'output_text');
-      const { layers } = JSON.parse(content?.text ?? '{}');
+      const { layers, schemeIndex, background } = JSON.parse(content?.text ?? '{}');
+      const colors = colorOptions && isSlot(schemeIndex, colorOptions.palettes.length) && isSlot(background, 4)
+        ? { schemeIndex, background } : undefined;
       if (!Array.isArray(layers) || layers.length > 5) throw new Error('Некорректное число слоёв');
       const chosen = new Map<string, string>();
-      return layers.map(({ id, role, relativeTo, dx, dy, rotation, depth }, index) => {
+      const placements = layers.map(({ id, role, relativeTo, dx, dy, rotation, depth, paintChanges }, index) => {
         const subject = subjects.get(id);
         if (!subject || chosen.has(id) || (role !== 'main' && role !== 'background')) throw new Error('Недопустимый предмет');
         if (index === 0 ? relativeTo !== null : !chosen.has(relativeTo)) throw new Error('Некорректная опора');
@@ -100,8 +128,15 @@ export class OpenAiClient {
         const assetId = (role === 'main' ? variants.main : variants.background) ?? variants.main ?? variants.background!;
         const anchor = chosen.get(relativeTo) ?? null;
         chosen.set(id, assetId);
-        return { assetId, relativeTo: anchor, dx, dy, rotation, depth };
+        const placement: ScenePlacement = { assetId, relativeTo: anchor, dx, dy, rotation, depth };
+        if (colors && colorOptions && Array.isArray(paintChanges)) {
+          const count = assetId === variants.background ? 4 : 8;
+          placement.paintChanges = paintChanges.filter((change): change is PaintChange =>
+            change && isSlot(change.from, count) && colorOptions.paints[assetId]?.includes(change.from) && isSlot(change.to, count));
+        }
+        return placement;
       });
+      return colors ? { placements, colors } : { placements };
     } catch (error) {
       this.logger.warn('Подбор по тегам. ' + (error instanceof Error ? error.message : 'Ошибка OpenAI'));
     }
