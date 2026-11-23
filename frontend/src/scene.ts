@@ -108,11 +108,42 @@ function slots(count: number, artboard: Artboard): Slot[] {
   });
 }
 
+interface PlacedObject {
+  asset: SvgAsset;
+  x: number;
+  y: number;
+  halfWidth: number;
+  halfHeight: number;
+  rotation: number;
+}
+
+function coveredFraction(rear: PlacedObject, front: PlacedObject, x: number, y: number) {
+  const width = Math.min(x + rear.halfWidth, front.x + front.halfWidth)
+    - Math.max(x - rear.halfWidth, front.x - front.halfWidth);
+  const height = Math.min(y + rear.halfHeight, front.y + front.halfHeight)
+    - Math.max(y - rear.halfHeight, front.y - front.halfHeight);
+  return Math.max(0, width) * Math.max(0, height) / (4 * rear.halfWidth * rear.halfHeight);
+}
+
+// Keep intentional contact. Only move a rear silhouette if a nearer layer covers almost all of its bounds.
+function revealHiddenObjects(objects: PlacedObject[]) {
+  for (let i = objects.length - 2; i >= 0; i--) {
+    const rear = objects[i];
+    const front = objects.slice(i + 1);
+    if (!front.some(other => coveredFraction(rear, other, rear.x, rear.y) > .87)) continue;
+    const edges = front.flatMap(other => [
+      { x: other.x - other.halfWidth, y: rear.y }, { x: other.x + other.halfWidth, y: rear.y },
+      { x: rear.x, y: other.y - other.halfHeight }, { x: rear.x, y: other.y + other.halfHeight },
+    ]);
+    const nearest = edges.filter(({ x, y }) => front.every(other => coveredFraction(rear, other, x, y) <= .55))
+      .sort((a, b) => Math.hypot(a.x - rear.x, a.y - rear.y) - Math.hypot(b.x - rear.x, b.y - rear.y))[0];
+    if (nearest) Object.assign(rear, nearest);
+  }
+}
+
 function arrangeScene(assets: SvgAsset[], artboard: Artboard, plan: ScenePlacement[]): Layer[] | undefined {
   if (assets.length !== plan.length) return;
-  const positions = new Map<string, {
-    asset: SvgAsset; x: number; y: number; halfWidth: number; halfHeight: number; rotation: number;
-  }>();
+  const positions = new Map<string, PlacedObject>();
   for (const [index, asset] of assets.entries()) {
     const { assetId, relativeTo, rotation, dx, dy } = plan[index];
     const anchor = relativeTo === null ? undefined : positions.get(relativeTo);
@@ -121,23 +152,28 @@ function arrangeScene(assets: SvgAsset[], artboard: Artboard, plan: ScenePlaceme
     const cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
     const halfWidth = (asset.width * cos + asset.height * sin) / 2;
     const halfHeight = (asset.width * sin + asset.height * cos) / 2;
-    const x = anchor ? anchor.x + dx * (anchor.halfWidth + halfWidth) : 0;
-    const y = anchor ? anchor.y + dy * (anchor.halfHeight + halfHeight) : 0;
+    // Isometric drawings leave the corners of their viewBoxes empty. Measure a diagonal
+    // offset to the edge of a diamond so two apparently overlapping boxes don't float apart.
+    const distance = Math.abs(dx) + Math.abs(dy);
+    const diagonal = distance ? Math.max(Math.abs(dx), Math.abs(dy)) / distance : 1;
+    const x = anchor ? anchor.x + dx * diagonal * (anchor.halfWidth + halfWidth) : 0;
+    const y = anchor ? anchor.y + dy * diagonal * (anchor.halfHeight + halfHeight) : 0;
     positions.set(assetId, { asset, x, y, halfWidth, halfHeight, rotation });
   }
-  const objects = Array.from(positions.values());
+  const objects = Array.from(positions.values())
+    .sort((a, b) => Number(a.asset.role === 'main') - Number(b.asset.role === 'main'));
+  revealHiddenObjects(objects);
   const left = Math.min(...objects.map(o => o.x - o.halfWidth));
   const right = Math.max(...objects.map(o => o.x + o.halfWidth));
   const top = Math.min(...objects.map(o => o.y - o.halfHeight));
   const bottom = Math.max(...objects.map(o => o.y + o.halfHeight));
   const scale = .84 * Math.min(artboard.width / (right - left), artboard.height / (bottom - top));
-  return objects.sort((a, b) => Number(a.asset.role === 'main') - Number(b.asset.role === 'main'))
-    .map(({ asset, x, y, rotation }) => ({
-      ...placeAsset(asset, artboard,
-        artboard.width / 2 + (x - (left + right) / 2) * scale,
-        artboard.height / 2 + (y - (top + bottom) / 2) * scale, scale),
-      rotation,
-    }));
+  return objects.map(({ asset, x, y, rotation }) => ({
+    ...placeAsset(asset, artboard,
+      artboard.width / 2 + (x - (left + right) / 2) * scale,
+      artboard.height / 2 + (y - (top + bottom) / 2) * scale, scale),
+    rotation,
+  }));
 }
 
 export function arrangeObjects(assets: SvgAsset[], artboard: Artboard, plan?: ScenePlacement[]): Layer[] {

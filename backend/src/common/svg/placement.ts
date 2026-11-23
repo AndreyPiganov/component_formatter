@@ -1,5 +1,5 @@
-// Offsets are fractions of the two rotated objects' combined half-extents.
-// An offset of 1 puts the objects edge to edge on that axis.
+// A unit offset along one axis places the rotated bounds edge to edge.
+// Diagonal offsets follow an isometric footprint to allow for empty SVG corners.
 export interface ScenePlacement {
   assetId: string;
   relativeTo: string | null;

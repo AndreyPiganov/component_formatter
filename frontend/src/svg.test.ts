@@ -169,4 +169,27 @@ describe('size variants and palette', () => {
     expect(back.y).toBeLessThan(page.y);
     expect(back.x).toBeLessThan(page.x);
   });
+
+  it('exposes part of a small background object hidden behind the subject', () => {
+    const wallet = parseSvg(entry, fixture);
+    const coin = { ...wallet, id: 'coin', role: 'background' as const, width: 8, height: 8 };
+    const [back, front] = arrangeObjects([wallet, coin], { ...formats[0], background: 'transparent' }, [
+      { assetId: wallet.id, relativeTo: null, dx: 0, dy: 0, rotation: 0 },
+      { assetId: coin.id, relativeTo: wallet.id, dx: 0, dy: -.25, rotation: 0 },
+    ]);
+    expect(back.assetId).toBe('coin');
+    expect(back.y).toBeCloseTo(front.y - wallet.height * front.scale / 2);
+    expect(back.x).toBeCloseTo(front.x);
+  });
+
+  it('brings diagonal contact inside the transparent corners of isometric artwork', () => {
+    const phone = parseSvg(entry, fixture);
+    const coin = { ...phone, id: 'coin', width: 8, height: 8 };
+    const [base, token] = arrangeObjects([phone, coin], { ...formats[0], background: 'transparent' }, [
+      { assetId: phone.id, relativeTo: null, dx: 0, dy: 0, rotation: 0 },
+      { assetId: coin.id, relativeTo: phone.id, dx: .6, dy: -.6, rotation: 0 },
+    ]);
+    expect(token.x - base.x).toBeCloseTo((phone.width + coin.width) * .15 * base.scale);
+    expect(base.y - token.y).toBeCloseTo((phone.height + coin.height) * .15 * base.scale);
+  });
 });
